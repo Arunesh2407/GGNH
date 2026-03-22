@@ -81,15 +81,13 @@ const doctors = [
     name: "Dr. Vikas Gupta",
     qualification: "MBBS, MS (Ortho)",
     specialization: "Orthopaedics",
-    image:
-      "https://www.ggnursinghome.com/assets/images/consultants/dr-vikas-gupta.jpg",
+    image: "/images/consultants/dr-vikas-gupta.jpg",
   },
   {
     name: "Dr. Shefali Gupta",
     qualification: "MBBS, MS (Ophtho)",
     specialization: "Ophthalmology",
-    image:
-      "https://www.ggnursinghome.com/assets/images/consultants/dr-shefali-gupta.jpg",
+    image: "/images/consultants/dr-shefali-gupta.jpg",
   },
 ];
 
@@ -137,7 +135,7 @@ const Index = () => {
       >
         <div className="absolute inset-0">
           <img
-            src="https://www.ggnursinghome.com/assets/images/slider/img1.jpg"
+            src="/images/hospital-1.jpg"
             alt="G G Nursing Home"
             className="w-full h-full object-cover opacity-20"
           />
@@ -259,7 +257,7 @@ const Index = () => {
                 </h2>
                 <div className="rounded-2xl overflow-hidden shadow-[var(--card-shadow-hover)] mt-6">
                   <img
-                    src="https://www.ggnursinghome.com/assets/images/hospital-1.jpg"
+                    src="/images/hospital-1.jpg"
                     alt="G G Nursing Home Building"
                     className="w-full h-72 object-cover"
                     loading="lazy"
