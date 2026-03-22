@@ -92,11 +92,11 @@ const Navbar = () => {
           <div className="flex items-center justify-between h-16 lg:h-[72px]">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 shrink-0">
-              <div className="w-11 h-11 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-base">
-                  GG
-                </span>
-              </div>
+              <img
+                src="/images/logo.png"
+                alt="G G Nursing Home logo"
+                className="w-11 h-11 object-contain rounded-full bg-white p-0.5 border border-border/40"
+              />
               <div>
                 <span className="font-bold text-lg tracking-tight text-foreground leading-none">
                   G G Nursing Home

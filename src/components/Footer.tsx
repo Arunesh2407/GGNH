@@ -30,11 +30,11 @@ const Footer = () => {
           {/* Logo & about */}
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-base">
-                  GG
-                </span>
-              </div>
+              <img
+                src="/images/logo.png"
+                alt="G G Nursing Home logo"
+                className="w-11 h-11 object-contain rounded-full bg-white p-0.5"
+              />
               <div>
                 <span className="font-bold text-lg">G G Nursing Home</span>
                 <p className="text-xs text-white/50">NABH Pre-accredited</p>
