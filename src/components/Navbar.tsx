@@ -181,6 +181,17 @@ const Navbar = () => {
               </Link>
 
               <Link
+                to="/gallery"
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive("/gallery")
+                    ? "text-primary bg-primary/8"
+                    : "text-foreground hover:text-primary hover:bg-primary/5"
+                }`}
+              >
+                Gallery
+              </Link>
+
+              <Link
                 to="/contact"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActive("/contact")
@@ -261,6 +272,12 @@ const Navbar = () => {
               className={`block px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${isActive("/doctors") ? "text-primary bg-primary/8" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
             >
               Doctors
+            </Link>
+            <Link
+              to="/gallery"
+              className={`block px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${isActive("/gallery") ? "text-primary bg-primary/8" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+            >
+              Gallery
             </Link>
             <Link
               to="/contact"
