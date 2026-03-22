@@ -16,14 +16,14 @@ const Contact = () => {
     name: "",
     email: "",
     phone: "",
-    department: "",
+    doctor: "",
     message: "",
   });
   const [sending, setSending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.phone.trim() || !form.message.trim()) {
+    if (!form.name.trim() || !form.phone.trim()) {
       toast({
         title: "Please fill all required fields",
         variant: "destructive",
@@ -38,8 +38,8 @@ const Contact = () => {
         name: form.name.trim(),
         email: form.email.trim() || "Not provided",
         phone: form.phone.trim(),
-        department: form.department || "Not selected",
-        message: form.message.trim(),
+        doctor: form.doctor || "Not selected",
+        message: form.message.trim() || "Not provided",
         _subject: "New Appointment Request - G G Nursing Home",
         _template: "table",
         _captcha: "false",
@@ -68,7 +68,7 @@ const Contact = () => {
           name: appointmentPayload.name,
           phone: appointmentPayload.phone,
           email: appointmentPayload.email,
-          department: appointmentPayload.department,
+          doctor: appointmentPayload.doctor,
           message: appointmentPayload.message,
         },
       };
@@ -101,13 +101,16 @@ const Contact = () => {
 
       toast({
         title: "Appointment Request Sent!",
-        description:
-          notificationTasks.length > 0
-            ? "Email was sent and notification hooks were triggered."
-            : "Email sent to G G Nursing Home. Add webhook env vars to enable SMS/WhatsApp notifications.",
+        description: "You will recieve a call within 24 hours",
       });
 
-      setForm({ name: "", email: "", phone: "", department: "", message: "" });
+      setForm({
+        name: "",
+        email: "",
+        phone: "",
+        doctor: "",
+        message: "",
+      });
     } catch {
       toast({
         title: "Unable to send appointment",
@@ -274,30 +277,26 @@ const Contact = () => {
                       </div>
                       <div>
                         <label className="text-sm font-medium text-foreground mb-1.5 block">
-                          Department
+                          Doctor
                         </label>
                         <select
-                          value={form.department}
+                          value={form.doctor}
                           onChange={(e) =>
-                            setForm({ ...form, department: e.target.value })
+                            setForm({ ...form, doctor: e.target.value })
                           }
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          <option value="">Select Department</option>
-                          <option>General Medicine</option>
-                          <option>General Surgery</option>
-                          <option>Orthopaedics</option>
-                          <option>Ophthalmology</option>
-                          <option>Pathology</option>
-                          <option>Plastic Surgery</option>
-                          <option>Radiodiagnosis</option>
-                          <option>Neurosurgery</option>
+                          <option value="">Select Doctor</option>
+                          <option>Dr. Vikas Gupta</option>
+                          <option>Dr. Shefali Gupta</option>
+                          <option>Consultant Physician</option>
+                          <option>Don't know</option>
                         </select>
                       </div>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-foreground mb-1.5 block">
-                        Message *
+                        Message
                       </label>
                       <Textarea
                         value={form.message}
