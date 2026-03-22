@@ -419,7 +419,10 @@ const Index = () => {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {doc.qualification}
                     </p>
-                    <Link to="/contact" className="block mt-4">
+                    <Link
+                      to={`/contact?doctor=${encodeURIComponent(doc.name)}`}
+                      className="block mt-4"
+                    >
                       <Button
                         className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
                         size="sm"

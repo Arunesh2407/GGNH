@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,9 +10,16 @@ import { useToast } from "@/hooks/use-toast";
 const APPOINTMENT_EMAIL_ENDPOINT =
   "https://formsubmit.co/ajax/ggnhpvtltd@gmail.com";
 const NOTIFICATION_PHONE = "7649891060";
+const DOCTOR_OPTIONS = [
+  "Dr. Vikas Gupta",
+  "Dr. Shefali Gupta",
+  "Consultant Physician",
+  "Don't know",
+];
 
 const Contact = () => {
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -20,6 +28,13 @@ const Contact = () => {
     message: "",
   });
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    const doctorFromQuery = searchParams.get("doctor");
+    if (doctorFromQuery && DOCTOR_OPTIONS.includes(doctorFromQuery)) {
+      setForm((prev) => ({ ...prev, doctor: doctorFromQuery }));
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,10 +302,9 @@ const Contact = () => {
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <option value="">Select Doctor</option>
-                          <option>Dr. Vikas Gupta</option>
-                          <option>Dr. Shefali Gupta</option>
-                          <option>Consultant Physician</option>
-                          <option>Don't know</option>
+                          {DOCTOR_OPTIONS.map((doctor) => (
+                            <option key={doctor}>{doctor}</option>
+                          ))}
                         </select>
                       </div>
                     </div>

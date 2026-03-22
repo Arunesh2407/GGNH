@@ -132,9 +132,14 @@ const Navbar = () => {
               </Link>
 
               {/* Departments dropdown */}
-              <div ref={deptRef} className="relative">
-                <button
-                  onClick={() => setDeptOpen(!deptOpen)}
+              <div
+                ref={deptRef}
+                className="relative"
+                onMouseEnter={() => setDeptOpen(true)}
+                onMouseLeave={() => setDeptOpen(false)}
+              >
+                <Link
+                  to="/services"
                   className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive("/services")
                       ? "text-primary bg-primary/8"
@@ -145,7 +150,7 @@ const Navbar = () => {
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform ${deptOpen ? "rotate-180" : ""}`}
                   />
-                </button>
+                </Link>
                 {deptOpen && (
                   <div className="absolute top-full left-0 mt-1 w-56 bg-card rounded-lg shadow-xl border border-border py-2 animate-fade-in">
                     {departments.map((dept) => (

@@ -139,7 +139,9 @@ const Doctors = () => {
                             {doc.qualification}
                           </p>
                         </div>
-                        <Link to="/contact">
+                        <Link
+                          to={`/contact?doctor=${encodeURIComponent(doc.name)}`}
+                        >
                           <Button
                             className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
                             size="sm"
