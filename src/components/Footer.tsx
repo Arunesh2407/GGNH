@@ -1,8 +1,6 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Phone, Mail, MapPin, Clock, Send } from "lucide-react";
+import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 const Footer = () => {
   return (
@@ -25,10 +23,10 @@ const Footer = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-14">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+      <div className="container mx-auto px-4 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr_1.25fr] gap-8 lg:gap-x-10">
           {/* Logo & about */}
-          <div>
+          <div className="max-w-sm">
             <div className="flex items-center gap-3 mb-4">
               <img
                 src="/images/logo.png"
@@ -131,7 +129,7 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="border-t border-white/10 mt-12 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-white/40">
+        <div className="border-t border-white/10 mt-10 pt-5 flex flex-col md:flex-row items-center justify-between gap-2 text-sm text-white/40">
           <span>
             © {new Date().getFullYear()} G G Nursing Home Pvt. Ltd. All rights
             reserved.
