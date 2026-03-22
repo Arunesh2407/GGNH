@@ -6,29 +6,126 @@ import ScrollReveal from "@/components/ScrollReveal";
 import { Phone, Mail, MapPin, Clock, Send, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const APPOINTMENT_EMAIL_ENDPOINT =
+  "https://formsubmit.co/ajax/ggnhpvtltd@gmail.com";
+const NOTIFICATION_PHONE = "7649891060";
+
 const Contact = () => {
   const { toast } = useToast();
-  const [form, setForm] = useState({ name: "", email: "", phone: "", department: "", message: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    department: "",
+    message: "",
+  });
   const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim() || !form.message.trim()) {
-      toast({ title: "Please fill all required fields", variant: "destructive" });
+      toast({
+        title: "Please fill all required fields",
+        variant: "destructive",
+      });
       return;
     }
+
     setSending(true);
-    setTimeout(() => {
-      toast({ title: "Message Sent!", description: "We will get back to you shortly." });
+
+    try {
+      const appointmentPayload = {
+        name: form.name.trim(),
+        email: form.email.trim() || "Not provided",
+        phone: form.phone.trim(),
+        department: form.department || "Not selected",
+        message: form.message.trim(),
+        _subject: "New Appointment Request - G G Nursing Home",
+        _template: "table",
+        _captcha: "false",
+      };
+
+      const emailResponse = await fetch(APPOINTMENT_EMAIL_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(appointmentPayload),
+      });
+
+      if (!emailResponse.ok) {
+        throw new Error("Email request failed");
+      }
+
+      const smsWebhookUrl = import.meta.env.VITE_SMS_WEBHOOK_URL;
+      const whatsappWebhookUrl = import.meta.env.VITE_WHATSAPP_WEBHOOK_URL;
+
+      const notifyPayload = {
+        to: NOTIFICATION_PHONE,
+        type: "appointment",
+        appointment: {
+          name: appointmentPayload.name,
+          phone: appointmentPayload.phone,
+          email: appointmentPayload.email,
+          department: appointmentPayload.department,
+          message: appointmentPayload.message,
+        },
+      };
+
+      const notificationTasks: Promise<Response>[] = [];
+
+      if (smsWebhookUrl) {
+        notificationTasks.push(
+          fetch(smsWebhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(notifyPayload),
+          }),
+        );
+      }
+
+      if (whatsappWebhookUrl) {
+        notificationTasks.push(
+          fetch(whatsappWebhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(notifyPayload),
+          }),
+        );
+      }
+
+      if (notificationTasks.length > 0) {
+        await Promise.allSettled(notificationTasks);
+      }
+
+      toast({
+        title: "Appointment Request Sent!",
+        description:
+          notificationTasks.length > 0
+            ? "Email was sent and notification hooks were triggered."
+            : "Email sent to G G Nursing Home. Add webhook env vars to enable SMS/WhatsApp notifications.",
+      });
+
       setForm({ name: "", email: "", phone: "", department: "", message: "" });
+    } catch {
+      toast({
+        title: "Unable to send appointment",
+        description: "Please try again or call 07622-229250.",
+        variant: "destructive",
+      });
+    } finally {
       setSending(false);
-    }, 1000);
+    }
   };
 
   return (
     <div className="min-h-screen">
       {/* Hero banner */}
-      <section className="relative pt-32 pb-16 md:pt-40 md:pb-20" style={{ background: "var(--hero-gradient)" }}>
+      <section
+        className="relative pt-32 pb-16 md:pt-40 md:pb-20"
+        style={{ background: "var(--hero-gradient)" }}
+      >
         <div className="container mx-auto px-4 relative z-10">
           <ScrollReveal>
             <h1 className="heading-display text-4xl md:text-5xl font-bold text-white mb-3">
@@ -52,23 +149,52 @@ const Contact = () => {
                 </h2>
                 <div className="space-y-4">
                   {[
-                    { icon: MapPin, label: "Address", value: "Madan Mohan Choubey Ward, Bargawan, Katni (M.P) – 483501" },
-                    { icon: Phone, label: "Phone", value: "07622-229250", href: "tel:07622229250" },
-                    { icon: Mail, label: "Email", value: "ggnhkatni@gmail.com", href: "mailto:ggnhkatni@gmail.com" },
-                    { icon: Clock, label: "Emergency", value: "24×7 Emergency & Trauma Care Available" },
+                    {
+                      icon: MapPin,
+                      label: "Address",
+                      value:
+                        "Madan Mohan Choubey Ward, Bargawan, Katni (M.P) – 483501",
+                    },
+                    {
+                      icon: Phone,
+                      label: "Phone",
+                      value: "07622-229250",
+                      href: "tel:07622229250",
+                    },
+                    {
+                      icon: Mail,
+                      label: "Email",
+                      value: "ggnhkatni@gmail.com",
+                      href: "mailto:ggnhkatni@gmail.com",
+                    },
+                    {
+                      icon: Clock,
+                      label: "Emergency",
+                      value: "24×7 Emergency & Trauma Care Available",
+                    },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-start gap-4 p-4 bg-card rounded-xl shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow">
+                    <div
+                      key={item.label}
+                      className="flex items-start gap-4 p-4 bg-card rounded-xl shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow"
+                    >
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                         <item.icon className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-foreground text-sm">{item.label}</h4>
+                        <h4 className="font-medium text-foreground text-sm">
+                          {item.label}
+                        </h4>
                         {item.href ? (
-                          <a href={item.href} className="text-muted-foreground text-sm hover:text-primary transition-colors">
+                          <a
+                            href={item.href}
+                            className="text-muted-foreground text-sm hover:text-primary transition-colors"
+                          >
                             {item.value}
                           </a>
                         ) : (
-                          <p className="text-muted-foreground text-sm">{item.value}</p>
+                          <p className="text-muted-foreground text-sm">
+                            {item.value}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -98,28 +224,63 @@ const Contact = () => {
                   <h3 className="heading-display text-xl font-bold text-foreground mb-2">
                     Book an Appointment
                   </h3>
-                  <p className="text-sm text-muted-foreground mb-6">Fill the form below and our team will reach out to confirm your appointment.</p>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Fill the form below and our team will reach out to confirm
+                    your appointment.
+                  </p>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium text-foreground mb-1.5 block">Full Name *</label>
-                        <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your full name" maxLength={100} />
+                        <label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Full Name *
+                        </label>
+                        <Input
+                          value={form.name}
+                          onChange={(e) =>
+                            setForm({ ...form, name: e.target.value })
+                          }
+                          placeholder="Your full name"
+                          maxLength={100}
+                        />
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-foreground mb-1.5 block">Phone *</label>
-                        <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 XXXXX XXXXX" maxLength={15} />
+                        <label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Phone *
+                        </label>
+                        <Input
+                          value={form.phone}
+                          onChange={(e) =>
+                            setForm({ ...form, phone: e.target.value })
+                          }
+                          placeholder="+91 XXXXX XXXXX"
+                          maxLength={15}
+                        />
                       </div>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
-                        <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="your@email.com" maxLength={255} />
+                        <label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Email
+                        </label>
+                        <Input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) =>
+                            setForm({ ...form, email: e.target.value })
+                          }
+                          placeholder="your@email.com"
+                          maxLength={255}
+                        />
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-foreground mb-1.5 block">Department</label>
+                        <label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Department
+                        </label>
                         <select
                           value={form.department}
-                          onChange={(e) => setForm({ ...form, department: e.target.value })}
+                          onChange={(e) =>
+                            setForm({ ...form, department: e.target.value })
+                          }
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <option value="">Select Department</option>
@@ -135,11 +296,31 @@ const Contact = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-foreground mb-1.5 block">Message *</label>
-                      <Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Describe your concern or preferred appointment time..." rows={4} maxLength={1000} />
+                      <label className="text-sm font-medium text-foreground mb-1.5 block">
+                        Message *
+                      </label>
+                      <Textarea
+                        value={form.message}
+                        onChange={(e) =>
+                          setForm({ ...form, message: e.target.value })
+                        }
+                        placeholder="Describe your concern or preferred appointment time..."
+                        rows={4}
+                        maxLength={1000}
+                      />
                     </div>
-                    <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold h-11" disabled={sending}>
-                      {sending ? "Sending..." : <><Send className="w-4 h-4 mr-2" /> Send Message</>}
+                    <Button
+                      type="submit"
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold h-11"
+                      disabled={sending}
+                    >
+                      {sending ? (
+                        "Sending..."
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 mr-2" /> Send Message
+                        </>
+                      )}
                     </Button>
                   </form>
                 </div>
