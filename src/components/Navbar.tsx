@@ -10,6 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 const departments = [
   { to: "/services#general-medicine", label: "General Medicine" },
@@ -23,6 +24,7 @@ const departments = [
 ];
 
 const Navbar = () => {
+  const { isAuthenticated, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [deptOpen, setDeptOpen] = useState(false);
@@ -64,12 +66,23 @@ const Navbar = () => {
             <span>G G Nursing Home, Bargawan, Katni (M.P) – 483501</span>
           </div>
           <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+            <Link
+              to={isAuthenticated ? "/admin/attendance" : "/admin/login"}
+              className={`text-sm font-semibold hover:underline ${
+                isActive("/admin/login") || isActive("/admin/attendance")
+                  ? "text-accent"
+                  : "text-primary-foreground"
+              }`}
+            >
+              Login
+            </Link>
             <a
               href="mailto:ggnhkatni@gmail.com"
               className="hidden sm:flex items-center gap-1 hover:underline"
             >
               <Mail className="w-3.5 h-3.5" /> ggnhkatni@gmail.com
             </a>
+
             <a
               href="tel:07622229250"
               className="flex items-center gap-1.5 font-semibold hover:underline"
@@ -210,6 +223,11 @@ const Navbar = () => {
 
             {/* Right side */}
             <div className="hidden lg:flex items-center gap-2">
+              {isAuthenticated ? (
+                <Button variant="outline" onClick={logout}>
+                  Logout Admin
+                </Button>
+              ) : null}
               <Link to="/contact">
                 <Button className="bg-accent hover:bg-accent/90 text-accent-foreground font-semibold px-5">
                   Book An Appointment →
@@ -290,6 +308,15 @@ const Navbar = () => {
             >
               Contact Us
             </Link>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={logout}
+                className="w-full text-left px-3 py-2.5 rounded-md text-sm font-medium text-destructive hover:bg-destructive/10"
+              >
+                Logout Admin
+              </button>
+            ) : null}
             <Link to="/contact" className="block pt-2">
               <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold">
                 Book An Appointment →
