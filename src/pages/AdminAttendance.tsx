@@ -40,7 +40,15 @@ const statusClasses: Record<AttendanceStatus, string> = {
 const toTitleCase = (value: string) =>
   value.charAt(0).toUpperCase() + value.slice(1);
 
-const getTodayDate = () => new Date().toISOString().split("T")[0];
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getTodayDate = () => formatLocalDate(new Date());
 
 const getDatesInRange = (startDate: string, endDate: string) => {
   const dates: string[] = [];
@@ -48,7 +56,7 @@ const getDatesInRange = (startDate: string, endDate: string) => {
   const end = new Date(`${endDate}T00:00:00`);
 
   for (let date = start; date <= end; date.setDate(date.getDate() + 1)) {
-    dates.push(date.toISOString().split("T")[0]);
+    dates.push(formatLocalDate(date));
   }
 
   return dates;
