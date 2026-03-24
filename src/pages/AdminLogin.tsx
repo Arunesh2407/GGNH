@@ -64,7 +64,7 @@ const AdminLogin = () => {
             <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
               <ShieldCheck className="w-6 h-6" />
             </div>
-            <CardTitle className="text-2xl">Admin Login</CardTitle>
+            <CardTitle className="text-2xl">Login</CardTitle>
             <CardDescription>
               Sign in to manage staff attendance and edit staff details.
             </CardDescription>
@@ -74,14 +74,14 @@ const AdminLogin = () => {
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium">
-                  Admin Email
+                  Email
                 </label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Enter admin email"
+                  placeholder="Enter email"
                   required
                 />
               </div>

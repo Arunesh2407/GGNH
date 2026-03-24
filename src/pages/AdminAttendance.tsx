@@ -101,12 +101,14 @@ const AdminAttendance = () => {
     };
 
     staff.forEach((member) => {
-      const status = getAttendance(selectedDate, member.id);
-      summary[status] += 1;
+      const status = attendanceByDate[selectedDate]?.[member.id];
+      if (status) {
+        summary[status] += 1;
+      }
     });
 
     return summary;
-  }, [staff, selectedDate, getAttendance]);
+  }, [staff, selectedDate, attendanceByDate]);
 
   const onStaffFieldChange = (
     setter: React.Dispatch<React.SetStateAction<typeof blankStaff>>,
@@ -246,7 +248,7 @@ const AdminAttendance = () => {
     const headers = ["Name", "Phone", "Email", ...timelineDates, "Total %"];
     const rows = staff.map((member) => {
       const statuses = timelineDates.map(
-        (date) => attendanceByDate[date]?.[member.id] ?? "off",
+        (date) => attendanceByDate[date]?.[member.id] ?? "",
       );
 
       const presentDays = statuses.filter(
@@ -261,7 +263,7 @@ const AdminAttendance = () => {
         member.name,
         member.phone || "-",
         member.email || "-",
-        ...statuses.map((status) => toTitleCase(status)),
+        ...statuses.map((status) => (status ? toTitleCase(status) : "")),
         `${attendancePercentage}%`,
       ];
     });
@@ -333,6 +335,9 @@ const AdminAttendance = () => {
             <div className="flex flex-wrap items-center gap-2">
               <Link to="/">
                 <Button variant="outline">Public Site</Button>
+              </Link>
+              <Link to="/admin/attendance/report">
+                <Button variant="outline">View Timeline Report</Button>
               </Link>
               <Button
                 variant={editMode ? "default" : "outline"}
@@ -525,7 +530,8 @@ const AdminAttendance = () => {
               </TableHeader>
               <TableBody>
                 {staff.map((member) => {
-                  const status = getAttendance(selectedDate, member.id);
+                  const status =
+                    attendanceByDate[selectedDate]?.[member.id] ?? "";
                   const isEditing = editMode && editingId === member.id;
 
                   return (
@@ -609,7 +615,7 @@ const AdminAttendance = () => {
                               }
                               disabled={isMutating}
                               className={`px-2.5 py-1 text-xs rounded border transition-colors ${
-                                status === option
+                                status && status === option
                                   ? statusClasses[option]
                                   : "bg-background text-muted-foreground border-border hover:border-primary/50"
                               }`}

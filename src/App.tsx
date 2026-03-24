@@ -18,6 +18,7 @@ import Contact from "./pages/Contact.tsx";
 import Gallery from "./pages/Gallery.tsx";
 import AdminLogin from "./pages/AdminLogin.tsx";
 import AdminAttendance from "./pages/AdminAttendance.tsx";
+import AdminAttendanceReport from "./pages/AdminAttendanceReport.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <AdminAttendance />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/attendance/report"
+                element={
+                  <ProtectedRoute>
+                    <AdminAttendanceReport />
                   </ProtectedRoute>
                 }
               />
