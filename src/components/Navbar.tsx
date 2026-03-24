@@ -67,9 +67,9 @@ const Navbar = () => {
           </div>
           <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
             <Link
-              to={isAuthenticated ? "/admin/attendance" : "/admin/login"}
+              to={isAuthenticated ? "/staff" : "/admin/login"}
               className={`text-sm font-semibold hover:underline ${
-                isActive("/admin/login") || isActive("/admin/attendance")
+                isActive("/admin/login") || isActive("/staff")
                   ? "text-accent"
                   : "text-primary-foreground"
               }`}

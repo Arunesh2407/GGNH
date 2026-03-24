@@ -114,7 +114,7 @@ const AdminAttendanceReport = () => {
                 View attendance of all staff members for a custom timeline.
               </CardDescription>
             </div>
-            <Link to="/admin/attendance">
+            <Link to="/staff/attendance">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4" />
                 Back to Dashboard

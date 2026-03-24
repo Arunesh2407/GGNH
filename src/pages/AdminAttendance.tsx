@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { Download, Pencil, Plus, Trash2, UserCog } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -26,7 +25,6 @@ import {
   type StaffMember,
   useAttendance,
 } from "@/context/AttendanceContext";
-import { useAuth } from "@/context/AuthContext";
 
 const statusOptions: AttendanceStatus[] = [
   "present",
@@ -96,7 +94,6 @@ const blankStaff = {
 };
 
 const AdminAttendance = () => {
-  const { logout } = useAuth();
   const {
     staff,
     attendanceByDate,
@@ -104,12 +101,11 @@ const AdminAttendance = () => {
     updateStaff,
     removeStaff,
     markAttendance,
-    getAttendance,
     isLoading,
     error,
   } = useAttendance();
 
-  const [selectedDate, setSelectedDate] = useState(getTodayDate);
+  const [selectedDate] = useState(getTodayDate);
   const [editMode, setEditMode] = useState(false);
   const [newStaff, setNewStaff] = useState(blankStaff);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -396,12 +392,6 @@ const AdminAttendance = () => {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Link to="/">
-                <Button variant="outline">Public Site</Button>
-              </Link>
-              <Link to="/admin/attendance/report">
-                <Button variant="outline">View Timeline Report</Button>
-              </Link>
               <Button
                 variant={editMode ? "default" : "outline"}
                 onClick={() => {
@@ -419,15 +409,6 @@ const AdminAttendance = () => {
               >
                 <Download className="w-4 h-4" />
                 Download PDF
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  await logout();
-                  toast.success("You are logged out.");
-                }}
-              >
-                Logout
               </Button>
             </div>
           </CardHeader>

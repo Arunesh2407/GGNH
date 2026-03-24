@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import ScrollReveal from "@/components/ScrollReveal";
 import { Phone, Mail, MapPin, Clock, Send, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { appointmentService } from "@/services/appointmentService";
 
 const APPOINTMENT_EMAIL_ENDPOINT =
   "https://formsubmit.co/ajax/ggnhpvtltd@gmail.com";
@@ -113,6 +114,14 @@ const Contact = () => {
       if (notificationTasks.length > 0) {
         await Promise.allSettled(notificationTasks);
       }
+
+      await appointmentService.addAppointment({
+        name: appointmentPayload.name,
+        email: appointmentPayload.email,
+        phone: appointmentPayload.phone,
+        doctor: appointmentPayload.doctor,
+        message: appointmentPayload.message,
+      });
 
       toast({
         title: "Appointment Request Sent!",

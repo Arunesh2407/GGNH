@@ -6,6 +6,7 @@ This project now uses:
 
 - Firebase Authentication for admin login
 - Appwrite Database for staff and attendance data
+- Appwrite Database for appointments with status tracking
 
 ### 1) Configure environment variables
 
@@ -22,6 +23,7 @@ VITE_APPWRITE_PROJECT_ID=
 VITE_APPWRITE_DATABASE_ID=
 VITE_APPWRITE_STAFF_COLLECTION_ID=
 VITE_APPWRITE_ATTENDANCE_COLLECTION_ID=
+VITE_APPWRITE_APPOINTMENT_COLLECTION_ID=
 ```
 
 ### 2) Firebase Authentication
@@ -31,7 +33,7 @@ VITE_APPWRITE_ATTENDANCE_COLLECTION_ID=
 
 ### 3) Appwrite database collections
 
-Create two collections in the configured database:
+Create three collections in the configured database:
 
 - Staff collection fields:
   - `name` (string, required)
@@ -41,9 +43,17 @@ Create two collections in the configured database:
 - Attendance collection fields:
   - `date` (string, required, format `YYYY-MM-DD`)
   - `staffId` (string, required)
-  - `status` (string, required, one of `present`, `absent`, `leave`, `off`)
+  - `status` (string, required, one of `present`, `absent`, `leave`, `off`, `half-time`, `over-time`)
+- Appointment collection fields:
+  - `name` (string, required)
+  - `email` (string, required)
+  - `phone` (string, required)
+  - `doctor` (string, required)
+  - `message` (string, required)
+  - `status` (string, required, one of `booked`, `completed`)
+  - `completedAt` (string, optional)
 
-For quick development, allow authenticated users to create/read/update/delete documents in these collections.
+For quick development, allow client operations needed by the app on these collections.
 
 ### Future expansion
 

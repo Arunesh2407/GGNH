@@ -23,10 +23,10 @@ const AdminLogin = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const redirectTo =
-    (location.state as { from?: string } | null)?.from ?? "/admin/attendance";
+    (location.state as { from?: string } | null)?.from ?? "/staff";
 
   if (isAuthenticated) {
-    return <Navigate to="/admin/attendance" replace />;
+    return <Navigate to="/staff" replace />;
   }
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
