@@ -224,7 +224,7 @@ const Navbar = () => {
             {/* Right side */}
             <div className="hidden lg:flex items-center gap-2">
               {isAuthenticated ? (
-                <Button variant="outline" onClick={logout}>
+                <Button variant="outline" onClick={() => void logout()}>
                   Logout Admin
                 </Button>
               ) : null}
@@ -311,7 +311,7 @@ const Navbar = () => {
             {isAuthenticated ? (
               <button
                 type="button"
-                onClick={logout}
+                onClick={() => void logout()}
                 className="w-full text-left px-3 py-2.5 rounded-md text-sm font-medium text-destructive hover:bg-destructive/10"
               >
                 Logout Admin

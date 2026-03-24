@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Pencil, Plus, Trash2, UserCog } from "lucide-react";
+import { Download, Pencil, Plus, Trash2, UserCog } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +42,18 @@ const toTitleCase = (value: string) =>
 
 const getTodayDate = () => new Date().toISOString().split("T")[0];
 
+const getDatesInRange = (startDate: string, endDate: string) => {
+  const dates: string[] = [];
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+
+  for (let date = start; date <= end; date.setDate(date.getDate() + 1)) {
+    dates.push(date.toISOString().split("T")[0]);
+  }
+
+  return dates;
+};
+
 const blankStaff = {
   name: "",
   role: "",
@@ -51,18 +65,24 @@ const AdminAttendance = () => {
   const { logout } = useAuth();
   const {
     staff,
+    attendanceByDate,
     addStaff,
     updateStaff,
     removeStaff,
     markAttendance,
     getAttendance,
+    isLoading,
+    error,
   } = useAttendance();
 
   const [selectedDate, setSelectedDate] = useState(getTodayDate);
+  const [timelineStartDate, setTimelineStartDate] = useState(getTodayDate);
+  const [timelineEndDate, setTimelineEndDate] = useState(getTodayDate);
   const [editMode, setEditMode] = useState(false);
   const [newStaff, setNewStaff] = useState(blankStaff);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState(blankStaff);
+  const [isMutating, setIsMutating] = useState(false);
 
   const attendanceSummary = useMemo(() => {
     const summary = {
@@ -91,20 +111,28 @@ const AdminAttendance = () => {
     }));
   };
 
-  const handleAddStaff = () => {
+  const handleAddStaff = async () => {
     if (!newStaff.name.trim() || !newStaff.role.trim()) {
       toast.error("Name and role are required to add a staff member.");
       return;
     }
 
-    addStaff({
-      name: newStaff.name.trim(),
-      role: newStaff.role.trim(),
-      phone: newStaff.phone.trim(),
-      email: newStaff.email.trim(),
-    });
-    setNewStaff(blankStaff);
-    toast.success("Staff member added.");
+    setIsMutating(true);
+
+    try {
+      await addStaff({
+        name: newStaff.name.trim(),
+        role: newStaff.role.trim(),
+        phone: newStaff.phone.trim(),
+        email: newStaff.email.trim(),
+      });
+      setNewStaff(blankStaff);
+      toast.success("Staff member added.");
+    } catch {
+      toast.error("Unable to add staff. Check Appwrite configuration.");
+    } finally {
+      setIsMutating(false);
+    }
   };
 
   const startEdit = (member: StaffMember) => {
@@ -117,21 +145,29 @@ const AdminAttendance = () => {
     });
   };
 
-  const saveEdit = (id: string) => {
+  const saveEdit = async (id: string) => {
     if (!editingStaff.name.trim() || !editingStaff.role.trim()) {
       toast.error("Name and role are required.");
       return;
     }
 
-    updateStaff(id, {
-      name: editingStaff.name.trim(),
-      role: editingStaff.role.trim(),
-      phone: editingStaff.phone.trim(),
-      email: editingStaff.email.trim(),
-    });
-    setEditingId(null);
-    setEditingStaff(blankStaff);
-    toast.success("Staff member updated.");
+    setIsMutating(true);
+
+    try {
+      await updateStaff(id, {
+        name: editingStaff.name.trim(),
+        role: editingStaff.role.trim(),
+        phone: editingStaff.phone.trim(),
+        email: editingStaff.email.trim(),
+      });
+      setEditingId(null);
+      setEditingStaff(blankStaff);
+      toast.success("Staff member updated.");
+    } catch {
+      toast.error("Unable to update staff. Check Appwrite configuration.");
+    } finally {
+      setIsMutating(false);
+    }
   };
 
   const cancelEdit = () => {
@@ -139,18 +175,139 @@ const AdminAttendance = () => {
     setEditingStaff(blankStaff);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const confirmed = window.confirm("Remove this staff member?");
     if (!confirmed) {
       return;
     }
 
-    removeStaff(id);
-    if (editingId === id) {
-      cancelEdit();
+    setIsMutating(true);
+
+    try {
+      await removeStaff(id);
+      if (editingId === id) {
+        cancelEdit();
+      }
+      toast.success("Staff member removed.");
+    } catch {
+      toast.error("Unable to remove staff. Check Appwrite configuration.");
+    } finally {
+      setIsMutating(false);
     }
-    toast.success("Staff member removed.");
   };
+
+  const handleMarkAttendance = async (
+    date: string,
+    staffId: string,
+    status: AttendanceStatus,
+  ) => {
+    setIsMutating(true);
+
+    try {
+      await markAttendance(date, staffId, status);
+    } catch {
+      toast.error("Unable to save attendance. Check Appwrite configuration.");
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleDownloadTimelinePdf = () => {
+    if (staff.length === 0) {
+      toast.error("No staff records found to export.");
+      return;
+    }
+
+    if (!timelineStartDate || !timelineEndDate) {
+      toast.error("Select both start and end dates.");
+      return;
+    }
+
+    if (timelineStartDate > timelineEndDate) {
+      toast.error("Start date cannot be after end date.");
+      return;
+    }
+
+    const timelineDates = getDatesInRange(timelineStartDate, timelineEndDate);
+
+    if (timelineDates.length === 0) {
+      toast.error("No dates found in selected timeline.");
+      return;
+    }
+
+    const headers = ["Name", "Phone", "Email", ...timelineDates, "Total %"];
+    const rows = staff.map((member) => {
+      const statuses = timelineDates.map(
+        (date) => attendanceByDate[date]?.[member.id] ?? "off",
+      );
+
+      const presentDays = statuses.filter(
+        (status) => status === "present",
+      ).length;
+      const attendancePercentage = (
+        (presentDays / timelineDates.length) *
+        100
+      ).toFixed(1);
+
+      return [
+        member.name,
+        member.phone || "-",
+        member.email || "-",
+        ...statuses.map((status) => toTitleCase(status)),
+        `${attendancePercentage}%`,
+      ];
+    });
+
+    try {
+      const document = new jsPDF({
+        orientation: timelineDates.length > 4 ? "landscape" : "portrait",
+        unit: "pt",
+        format: "a4",
+      });
+
+      document.setFontSize(13);
+      document.text(
+        `Staff Attendance Timeline (${timelineStartDate} to ${timelineEndDate})`,
+        20,
+        28,
+      );
+
+      autoTable(document, {
+        head: [headers],
+        body: rows,
+        startY: 40,
+        margin: { left: 20, right: 20 },
+        styles: {
+          fontSize: 8,
+          cellPadding: 4,
+        },
+        headStyles: {
+          fillColor: [22, 163, 74],
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+      });
+
+      document.save(
+        `attendance-timeline-${timelineStartDate}-to-${timelineEndDate}.pdf`,
+      );
+
+      toast.success("Attendance timeline PDF downloaded.");
+    } catch {
+      toast.error("Unable to generate PDF. Try again.");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen pt-36 pb-16 px-4 bg-muted/30">
+        <div className="max-w-6xl mx-auto text-center text-muted-foreground">
+          Loading staff data...
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen pt-36 pb-16 px-4 bg-muted/30">
@@ -181,8 +338,8 @@ const AdminAttendance = () => {
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => {
-                  logout();
+                onClick={async () => {
+                  await logout();
                   toast.success("You are logged out.");
                 }}
               >
@@ -191,22 +348,74 @@ const AdminAttendance = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <label
-                  htmlFor="attendance-date"
-                  className="text-sm font-medium"
-                >
-                  Attendance Date
-                </label>
-                <Input
-                  id="attendance-date"
-                  type="date"
-                  className="mt-1 w-full sm:w-60"
-                  value={selectedDate}
-                  onChange={(event) => setSelectedDate(event.target.value)}
-                />
+            {error ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {error}
               </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-wrap gap-3">
+                <div>
+                  <label
+                    htmlFor="attendance-date"
+                    className="text-sm font-medium"
+                  >
+                    Attendance Date
+                  </label>
+                  <Input
+                    id="attendance-date"
+                    type="date"
+                    className="mt-1 w-full sm:w-52"
+                    value={selectedDate}
+                    onChange={(event) => setSelectedDate(event.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="timeline-start-date"
+                    className="text-sm font-medium"
+                  >
+                    Timeline Start
+                  </label>
+                  <Input
+                    id="timeline-start-date"
+                    type="date"
+                    className="mt-1 w-full sm:w-44"
+                    value={timelineStartDate}
+                    onChange={(event) =>
+                      setTimelineStartDate(event.target.value)
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="timeline-end-date"
+                    className="text-sm font-medium"
+                  >
+                    Timeline End
+                  </label>
+                  <Input
+                    id="timeline-end-date"
+                    type="date"
+                    className="mt-1 w-full sm:w-44"
+                    value={timelineEndDate}
+                    onChange={(event) => setTimelineEndDate(event.target.value)}
+                  />
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadTimelinePdf}
+                  disabled={isMutating}
+                >
+                  <Download className="w-4 h-4" />
+                  Download Timeline PDF
+                </Button>
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
                 <div className="rounded-md border bg-emerald-50 px-3 py-2">
                   Present:{" "}
@@ -282,7 +491,11 @@ const AdminAttendance = () => {
                     }
                   />
                 </div>
-                <Button className="mt-3" onClick={handleAddStaff}>
+                <Button
+                  className="mt-3"
+                  onClick={handleAddStaff}
+                  disabled={isMutating}
+                >
                   <Plus className="w-4 h-4" />
                   Add Staff
                 </Button>
@@ -380,8 +593,13 @@ const AdminAttendance = () => {
                               key={option}
                               type="button"
                               onClick={() =>
-                                markAttendance(selectedDate, member.id, option)
+                                handleMarkAttendance(
+                                  selectedDate,
+                                  member.id,
+                                  option,
+                                )
                               }
+                              disabled={isMutating}
                               className={`px-2.5 py-1 text-xs rounded border transition-colors ${
                                 status === option
                                   ? statusClasses[option]
@@ -401,6 +619,7 @@ const AdminAttendance = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => saveEdit(member.id)}
+                                  disabled={isMutating}
                                 >
                                   Save
                                 </Button>
@@ -408,6 +627,7 @@ const AdminAttendance = () => {
                                   size="sm"
                                   variant="outline"
                                   onClick={cancelEdit}
+                                  disabled={isMutating}
                                 >
                                   Cancel
                                 </Button>
@@ -417,6 +637,7 @@ const AdminAttendance = () => {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => startEdit(member)}
+                                disabled={isMutating}
                               >
                                 <Pencil className="w-4 h-4" />
                                 Edit
@@ -426,6 +647,7 @@ const AdminAttendance = () => {
                               size="sm"
                               variant="destructive"
                               onClick={() => handleDelete(member.id)}
+                              disabled={isMutating}
                             >
                               <Trash2 className="w-4 h-4" />
                               Remove

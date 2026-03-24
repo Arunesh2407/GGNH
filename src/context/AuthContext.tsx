@@ -1,61 +1,85 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 
 type AuthContextValue = {
   isAuthenticated: boolean;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  isLoading: boolean;
+  authError: string;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
 };
-
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "admin123";
-const AUTH_STORAGE_KEY = "ggnh_admin_session";
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const getInitialAuth = () => {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.localStorage.getItem(AUTH_STORAGE_KEY) === "active";
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [isAuthenticated, setIsAuthenticated] =
-    useState<boolean>(getInitialAuth);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
 
-  const login = (username: string, password: string) => {
-    const normalizedUsername = username.trim().toLowerCase();
-    const isValid =
-      normalizedUsername === ADMIN_USERNAME && password === ADMIN_PASSWORD;
+  useEffect(() => {
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      setIsLoading(false);
+      setAuthError(
+        "Firebase is not configured. Add Firebase env variables to enable admin login.",
+      );
+      return;
+    }
 
-    if (!isValid) {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+      setIsAuthenticated(Boolean(user));
+      setIsLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      setAuthError(
+        "Firebase is not configured. Add Firebase env variables in .env.",
+      );
       return false;
     }
 
-    setIsAuthenticated(true);
-    window.localStorage.setItem(AUTH_STORAGE_KEY, "active");
-    return true;
+    try {
+      await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      setAuthError("");
+      return true;
+    } catch (error) {
+      setAuthError("Invalid email or password.");
+      return false;
+    }
   };
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  const logout = async () => {
+    if (!firebaseAuth) {
+      return;
+    }
+
+    await signOut(firebaseAuth);
   };
 
   const value = useMemo(
     () => ({
       isAuthenticated,
+      isLoading,
+      authError,
       login,
       logout,
     }),
-    [isAuthenticated],
+    [isAuthenticated, isLoading, authError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

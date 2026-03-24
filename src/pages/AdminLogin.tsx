@@ -13,13 +13,14 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 
 const AdminLogin = () => {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, isLoading, authError, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const redirectTo =
     (location.state as { from?: string } | null)?.from ?? "/admin/attendance";
@@ -28,18 +29,32 @@ const AdminLogin = () => {
     return <Navigate to="/admin/attendance" replace />;
   }
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const isValid = login(username, password);
+    setIsSubmitting(true);
+
+    const isValid = await login(email, password);
 
     if (!isValid) {
-      setError("Invalid username or password.");
+      setError(authError || "Unable to login.");
+      setIsSubmitting(false);
       return;
     }
 
     setError("");
     navigate(redirectTo, { replace: true });
+    setIsSubmitting(false);
   };
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen pt-36 pb-16 px-4 bg-muted/30">
+        <div className="max-w-md mx-auto text-center text-muted-foreground">
+          Checking authentication...
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen pt-36 pb-16 px-4 bg-muted/30">
@@ -58,14 +73,15 @@ const AdminLogin = () => {
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="username" className="text-sm font-medium">
-                  Username
+                <label htmlFor="email" className="text-sm font-medium">
+                  Admin Email
                 </label>
                 <Input
-                  id="username"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  placeholder="Enter username"
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Enter admin email"
                   required
                 />
               </div>
@@ -84,18 +100,14 @@ const AdminLogin = () => {
                 />
               </div>
 
-              {error ? (
-                <p className="text-sm text-destructive">{error}</p>
+              {authError || error ? (
+                <p className="text-sm text-destructive">{error || authError}</p>
               ) : null}
 
-              <Button type="submit" className="w-full">
-                Login
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Signing in..." : "Login"}
               </Button>
             </form>
-
-            <div className="mt-6 rounded-md bg-muted p-3 text-xs text-muted-foreground">
-              Demo credentials: username admin, password admin123.
-            </div>
 
             <Link
               to="/"

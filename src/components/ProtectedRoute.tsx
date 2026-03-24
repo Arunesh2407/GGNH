@@ -6,8 +6,16 @@ type ProtectedRouteProps = {
 };
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="pt-40 text-center text-muted-foreground">
+        Checking session...
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (

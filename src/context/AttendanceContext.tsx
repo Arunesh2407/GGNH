@@ -6,6 +6,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { isAppwriteConfigured } from "@/lib/appwrite";
+import {
+  attendanceService,
+  type AttendanceByDate,
+} from "@/services/attendanceService";
 
 export type AttendanceStatus = "present" | "absent" | "leave" | "off";
 
@@ -17,25 +22,22 @@ export type StaffMember = {
   email: string;
 };
 
-type AttendanceRecord = Record<string, AttendanceStatus>;
-type AttendanceByDate = Record<string, AttendanceRecord>;
-
 type AttendanceContextValue = {
   staff: StaffMember[];
   attendanceByDate: AttendanceByDate;
-  addStaff: (member: Omit<StaffMember, "id">) => void;
-  updateStaff: (id: string, member: Omit<StaffMember, "id">) => void;
-  removeStaff: (id: string) => void;
+  isLoading: boolean;
+  error: string;
+  addStaff: (member: Omit<StaffMember, "id">) => Promise<void>;
+  updateStaff: (id: string, member: Omit<StaffMember, "id">) => Promise<void>;
+  removeStaff: (id: string) => Promise<void>;
   markAttendance: (
     date: string,
     staffId: string,
     status: AttendanceStatus,
-  ) => void;
+  ) => Promise<void>;
   getAttendance: (date: string, staffId: string) => AttendanceStatus;
+  refresh: () => Promise<void>;
 };
-
-const STAFF_STORAGE_KEY = "ggnh_staff_members";
-const ATTENDANCE_STORAGE_KEY = "ggnh_staff_attendance";
 
 const defaultStaff: StaffMember[] = [
   {
@@ -65,72 +67,68 @@ const AttendanceContext = createContext<AttendanceContextValue | undefined>(
   undefined,
 );
 
-const loadStaff = (): StaffMember[] => {
-  if (typeof window === "undefined") {
-    return defaultStaff;
-  }
-
-  const raw = window.localStorage.getItem(STAFF_STORAGE_KEY);
-  if (!raw) {
-    return defaultStaff;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as StaffMember[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return defaultStaff;
-    }
-    return parsed;
-  } catch {
-    return defaultStaff;
-  }
-};
-
-const loadAttendance = (): AttendanceByDate => {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const raw = window.localStorage.getItem(ATTENDANCE_STORAGE_KEY);
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as AttendanceByDate;
-    return parsed ?? {};
-  } catch {
-    return {};
-  }
-};
-
 export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
-  const [staff, setStaff] = useState<StaffMember[]>(loadStaff);
-  const [attendanceByDate, setAttendanceByDate] =
-    useState<AttendanceByDate>(loadAttendance);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [attendanceByDate, setAttendanceByDate] = useState<AttendanceByDate>(
+    {},
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    window.localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staff));
-  }, [staff]);
+  const refresh = async () => {
+    if (!isAppwriteConfigured) {
+      setStaff(defaultStaff);
+      setAttendanceByDate({});
+      setError(
+        "Appwrite is not configured. Add Appwrite env variables to enable cloud data storage.",
+      );
+      setIsLoading(false);
+      return;
+    }
 
-  useEffect(() => {
-    window.localStorage.setItem(
-      ATTENDANCE_STORAGE_KEY,
-      JSON.stringify(attendanceByDate),
-    );
-  }, [attendanceByDate]);
+    setIsLoading(true);
 
-  const addStaff = (member: Omit<StaffMember, "id">) => {
-    setStaff((prev) => [
-      ...prev,
-      {
-        id: `staff-${Date.now()}`,
-        ...member,
-      },
-    ]);
+    try {
+      const [staffResponse, attendanceResponse] = await Promise.all([
+        attendanceService.getStaff(),
+        attendanceService.getAttendanceByDate(),
+      ]);
+
+      setStaff(staffResponse);
+      setAttendanceByDate(attendanceResponse);
+      setError("");
+    } catch {
+      setError("Unable to load Appwrite data. Check collection permissions.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const updateStaff = (id: string, member: Omit<StaffMember, "id">) => {
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const addStaff = async (member: Omit<StaffMember, "id">) => {
+    if (!isAppwriteConfigured) {
+      setStaff((prev) => [
+        ...prev,
+        {
+          id: `staff-${Date.now()}`,
+          ...member,
+        },
+      ]);
+      return;
+    }
+
+    const created = await attendanceService.addStaff(member);
+    setStaff((prev) => [...prev, created]);
+  };
+
+  const updateStaff = async (id: string, member: Omit<StaffMember, "id">) => {
+    if (isAppwriteConfigured) {
+      await attendanceService.updateStaff(id, member);
+    }
+
     setStaff((prev) =>
       prev.map((entry) => {
         if (entry.id !== id) {
@@ -144,7 +142,11 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const removeStaff = (id: string) => {
+  const removeStaff = async (id: string) => {
+    if (isAppwriteConfigured) {
+      await attendanceService.removeStaff(id);
+    }
+
     setStaff((prev) => prev.filter((entry) => entry.id !== id));
 
     setAttendanceByDate((prev) => {
@@ -157,11 +159,15 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const markAttendance = (
+  const markAttendance = async (
     date: string,
     staffId: string,
     status: AttendanceStatus,
   ) => {
+    if (isAppwriteConfigured) {
+      await attendanceService.markAttendance(date, staffId, status);
+    }
+
     setAttendanceByDate((prev) => ({
       ...prev,
       [date]: {
@@ -179,13 +185,16 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       staff,
       attendanceByDate,
+      isLoading,
+      error,
       addStaff,
       updateStaff,
       removeStaff,
       markAttendance,
       getAttendance,
+      refresh,
     }),
-    [staff, attendanceByDate],
+    [staff, attendanceByDate, isLoading, error],
   );
 
   return (
