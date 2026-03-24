@@ -12,7 +12,13 @@ import {
   type AttendanceByDate,
 } from "@/services/attendanceService";
 
-export type AttendanceStatus = "present" | "absent" | "leave" | "off";
+export type AttendanceStatus =
+  | "present"
+  | "absent"
+  | "leave"
+  | "off"
+  | "half-time"
+  | "over-time";
 
 export type StaffMember = {
   id: string;
@@ -62,6 +68,15 @@ const defaultStaff: StaffMember[] = [
     email: "amit.verma@ggnh.local",
   },
 ];
+
+const getTodayDate = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
 
 const AttendanceContext = createContext<AttendanceContextValue | undefined>(
   undefined,
@@ -164,6 +179,10 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
     staffId: string,
     status: AttendanceStatus,
   ) => {
+    if (date !== getTodayDate()) {
+      throw new Error("Attendance can only be registered for today.");
+    }
+
     if (isAppwriteConfigured) {
       await attendanceService.markAttendance(date, staffId, status);
     }

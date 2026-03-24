@@ -28,17 +28,29 @@ import {
 } from "@/context/AttendanceContext";
 import { useAuth } from "@/context/AuthContext";
 
-const statusOptions: AttendanceStatus[] = ["present", "absent", "leave", "off"];
+const statusOptions: AttendanceStatus[] = [
+  "present",
+  "absent",
+  "leave",
+  "off",
+  "half-time",
+  "over-time",
+];
 
 const statusClasses: Record<AttendanceStatus, string> = {
   present: "bg-emerald-100 text-emerald-700 border-emerald-300",
   absent: "bg-rose-100 text-rose-700 border-rose-300",
   leave: "bg-amber-100 text-amber-700 border-amber-300",
   off: "bg-slate-100 text-slate-700 border-slate-300",
+  "half-time": "bg-sky-100 text-sky-700 border-sky-300",
+  "over-time": "bg-violet-100 text-violet-700 border-violet-300",
 };
 
 const toTitleCase = (value: string) =>
-  value.charAt(0).toUpperCase() + value.slice(1);
+  value
+    .split(/[\s_-]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 
 const formatLocalDate = (date: Date) => {
   const year = date.getFullYear();
@@ -49,6 +61,20 @@ const formatLocalDate = (date: Date) => {
 };
 
 const getTodayDate = () => formatLocalDate(new Date());
+
+const isValidDateInput = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsedDate = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return false;
+  }
+
+  return formatLocalDate(parsedDate) === value;
+};
 
 const getDatesInRange = (startDate: string, endDate: string) => {
   const dates: string[] = [];
@@ -84,8 +110,6 @@ const AdminAttendance = () => {
   } = useAttendance();
 
   const [selectedDate, setSelectedDate] = useState(getTodayDate);
-  const [timelineStartDate, setTimelineStartDate] = useState(getTodayDate);
-  const [timelineEndDate, setTimelineEndDate] = useState(getTodayDate);
   const [editMode, setEditMode] = useState(false);
   const [newStaff, setNewStaff] = useState(blankStaff);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -93,11 +117,13 @@ const AdminAttendance = () => {
   const [isMutating, setIsMutating] = useState(false);
 
   const attendanceSummary = useMemo(() => {
-    const summary = {
+    const summary: Record<AttendanceStatus, number> = {
       present: 0,
       absent: 0,
       leave: 0,
       off: 0,
+      "half-time": 0,
+      "over-time": 0,
     };
 
     staff.forEach((member) => {
@@ -215,8 +241,12 @@ const AdminAttendance = () => {
 
     try {
       await markAttendance(date, staffId, status);
-    } catch {
-      toast.error("Unable to save attendance. Check Appwrite configuration.");
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error("Unable to save attendance. Check Appwrite configuration.");
+      }
     } finally {
       setIsMutating(false);
     }
@@ -225,6 +255,39 @@ const AdminAttendance = () => {
   const handleDownloadTimelinePdf = () => {
     if (staff.length === 0) {
       toast.error("No staff records found to export.");
+      return;
+    }
+
+    const today = getTodayDate();
+    const startInput = window.prompt(
+      "Enter timeline start date (YYYY-MM-DD)",
+      today,
+    );
+
+    if (startInput === null) {
+      return;
+    }
+
+    const timelineStartDate = startInput.trim();
+
+    if (!isValidDateInput(timelineStartDate)) {
+      toast.error("Invalid start date. Use YYYY-MM-DD format.");
+      return;
+    }
+
+    const endInput = window.prompt(
+      "Enter timeline end date (YYYY-MM-DD)",
+      timelineStartDate,
+    );
+
+    if (endInput === null) {
+      return;
+    }
+
+    const timelineEndDate = endInput.trim();
+
+    if (!isValidDateInput(timelineEndDate)) {
+      toast.error("Invalid end date. Use YYYY-MM-DD format.");
       return;
     }
 
@@ -350,6 +413,14 @@ const AdminAttendance = () => {
                 {editMode ? "Exit Edit Mode" : "Edit Mode"}
               </Button>
               <Button
+                variant="outline"
+                onClick={handleDownloadTimelinePdf}
+                disabled={isMutating}
+              >
+                <Download className="w-4 h-4" />
+                Download PDF
+              </Button>
+              <Button
                 variant="destructive"
                 onClick={async () => {
                   await logout();
@@ -381,77 +452,27 @@ const AdminAttendance = () => {
                     type="date"
                     className="mt-1 w-full sm:w-52"
                     value={selectedDate}
-                    onChange={(event) => setSelectedDate(event.target.value)}
+                    disabled
+                    readOnly
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Daily attendance only (today).
+                  </p>
                 </div>
-
-                <div>
-                  <label
-                    htmlFor="timeline-start-date"
-                    className="text-sm font-medium"
-                  >
-                    Timeline Start
-                  </label>
-                  <Input
-                    id="timeline-start-date"
-                    type="date"
-                    className="mt-1 w-full sm:w-44"
-                    value={timelineStartDate}
-                    onChange={(event) =>
-                      setTimelineStartDate(event.target.value)
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="timeline-end-date"
-                    className="text-sm font-medium"
-                  >
-                    Timeline End
-                  </label>
-                  <Input
-                    id="timeline-end-date"
-                    type="date"
-                    className="mt-1 w-full sm:w-44"
-                    value={timelineEndDate}
-                    onChange={(event) => setTimelineEndDate(event.target.value)}
-                  />
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={handleDownloadTimelinePdf}
-                  disabled={isMutating}
-                >
-                  <Download className="w-4 h-4" />
-                  Download Timeline PDF
-                </Button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-                <div className="rounded-md border bg-emerald-50 px-3 py-2">
-                  Present:{" "}
-                  <span className="font-semibold">
-                    {attendanceSummary.present}
-                  </span>
-                </div>
-                <div className="rounded-md border bg-rose-50 px-3 py-2">
-                  Absent:{" "}
-                  <span className="font-semibold">
-                    {attendanceSummary.absent}
-                  </span>
-                </div>
-                <div className="rounded-md border bg-amber-50 px-3 py-2">
-                  Leave:{" "}
-                  <span className="font-semibold">
-                    {attendanceSummary.leave}
-                  </span>
-                </div>
-                <div className="rounded-md border bg-slate-50 px-3 py-2">
-                  Off:{" "}
-                  <span className="font-semibold">{attendanceSummary.off}</span>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                {statusOptions.map((status) => (
+                  <div
+                    key={status}
+                    className={`rounded-md border px-3 py-2 ${statusClasses[status]} flex items-center justify-between gap-2 whitespace-nowrap`}
+                  >
+                    <span>{toTitleCase(status)}:</span>
+                    <span className="font-semibold shrink-0">
+                      {attendanceSummary[status]}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
