@@ -3,25 +3,30 @@ import { ClipboardList, LockKeyhole, UserCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 
-const baseOptions = [
-  {
-    title: "Attendance",
-    description: "Mark and manage daily staff attendance.",
-    to: "/staff/attendance",
-    icon: UserCheck,
-  },
-  {
-    title: "Appointments",
-    description: "View booked appointments and mark completed ones.",
-    to: "/staff/appointments",
-    icon: ClipboardList,
-  },
-];
-
 const StaffHome = () => {
-  const { canManageUsers } = useAuth();
+  const { canManageAttendance, canManageAppointments, canManageUsers } =
+    useAuth();
   const options = [
-    ...baseOptions,
+    ...(canManageAttendance
+      ? [
+          {
+            title: "Attendance",
+            description: "Mark and manage daily staff attendance.",
+            to: "/staff/attendance",
+            icon: UserCheck,
+          },
+        ]
+      : []),
+    ...(canManageAppointments
+      ? [
+          {
+            title: "Appointments",
+            description: "View booked appointments and mark completed ones.",
+            to: "/staff/appointments",
+            icon: ClipboardList,
+          },
+        ]
+      : []),
     ...(canManageUsers
       ? [
           {
@@ -62,6 +67,15 @@ const StaffHome = () => {
               </Card>
             </Link>
           ))}
+
+          {options.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-sm text-muted-foreground">
+                No modules are assigned to your account yet. Please contact
+                super admin.
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
     </main>

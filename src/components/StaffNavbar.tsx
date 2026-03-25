@@ -16,7 +16,8 @@ import { useAuth } from "@/context/AuthContext";
 const StaffNavbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, canManageUsers } = useAuth();
+  const { logout, canManageAttendance, canManageAppointments, canManageUsers } =
+    useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -33,12 +34,18 @@ const StaffNavbar = () => {
 
   const navLinks = [
     { to: "/staff", label: "Home", icon: Home },
-    { to: "/staff/attendance", label: "Attendance", icon: UserCheck },
-    {
-      to: "/staff/appointments",
-      label: "Appointments",
-      icon: ClipboardList,
-    },
+    ...(canManageAttendance
+      ? [{ to: "/staff/attendance", label: "Attendance", icon: UserCheck }]
+      : []),
+    ...(canManageAppointments
+      ? [
+          {
+            to: "/staff/appointments",
+            label: "Appointments",
+            icon: ClipboardList,
+          },
+        ]
+      : []),
     ...(canManageUsers
       ? [
           {

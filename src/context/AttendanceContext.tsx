@@ -41,6 +41,7 @@ type AttendanceContextValue = {
     staffId: string,
     status: AttendanceStatus,
   ) => Promise<void>;
+  clearAttendance: (date: string, staffId: string) => Promise<void>;
   getAttendance: (date: string, staffId: string) => AttendanceStatus;
   refresh: () => Promise<void>;
 };
@@ -196,6 +197,26 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
+  const clearAttendance = async (date: string, staffId: string) => {
+    if (date !== getTodayDate()) {
+      throw new Error("Attendance can only be changed for today.");
+    }
+
+    if (isAppwriteConfigured) {
+      await attendanceService.clearAttendance(date, staffId);
+    }
+
+    setAttendanceByDate((prev) => {
+      const dayData = prev[date] ?? {};
+      const { [staffId]: _removed, ...restOfDay } = dayData;
+
+      return {
+        ...prev,
+        [date]: restOfDay,
+      };
+    });
+  };
+
   const getAttendance = (date: string, staffId: string): AttendanceStatus => {
     return attendanceByDate[date]?.[staffId] ?? "off";
   };
@@ -210,6 +231,7 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
       updateStaff,
       removeStaff,
       markAttendance,
+      clearAttendance,
       getAttendance,
       refresh,
     }),

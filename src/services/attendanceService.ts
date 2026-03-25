@@ -179,4 +179,20 @@ export const attendanceService = {
       );
     }
   },
+
+  async clearAttendance(date: string, staffId: string) {
+    assertConfigured();
+
+    const attendanceDocId = `${date}_${staffId}`;
+
+    try {
+      await appwriteDatabases.deleteDocument(
+        appwriteConfig.databaseId,
+        appwriteConfig.attendanceCollectionId,
+        attendanceDocId,
+      );
+    } catch {
+      // Nothing to clear if record does not exist.
+    }
+  },
 };

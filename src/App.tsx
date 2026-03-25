@@ -56,12 +56,30 @@ const App = () => (
                 }
               >
                 <Route index element={<StaffHome />} />
-                <Route path="attendance" element={<AdminAttendance />} />
+                <Route
+                  path="attendance"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-attendance">
+                      <AdminAttendance />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="attendance/report"
-                  element={<AdminAttendanceReport />}
+                  element={
+                    <ProtectedRoute requiredAccess="manage-attendance">
+                      <AdminAttendanceReport />
+                    </ProtectedRoute>
+                  }
                 />
-                <Route path="appointments" element={<StaffAppointments />} />
+                <Route
+                  path="appointments"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-appointments">
+                      <StaffAppointments />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="access-control"
                   element={

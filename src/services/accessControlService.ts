@@ -7,11 +7,18 @@ import {
 
 export type UserAccessRole = "owner" | "editor" | "viewer";
 
+export type UserPermissions = {
+  manageAttendance: boolean;
+  manageAppointments: boolean;
+  manageUsers: boolean;
+};
+
 export type UserAccessRecord = {
   id: string;
   email: string;
   role: UserAccessRole;
   isActive: boolean;
+  permissions: UserPermissions;
   updatedBy?: string;
   updatedAt?: string;
 };
@@ -20,6 +27,9 @@ type UserAccessDocument = Models.Document & {
   email: string;
   role: string;
   isActive: boolean;
+  manageAttendance?: boolean;
+  manageAppointments?: boolean;
+  manageUsers?: boolean;
   updatedBy?: string;
   updatedAt?: string;
 };
@@ -46,10 +56,50 @@ const toSafeRole = (role: string): UserAccessRole => {
   return "viewer";
 };
 
+export const getDefaultPermissionsForRole = (
+  role: UserAccessRole,
+): UserPermissions => {
+  if (role === "owner") {
+    return {
+      manageAttendance: true,
+      manageAppointments: true,
+      manageUsers: true,
+    };
+  }
+
+  if (role === "editor") {
+    return {
+      manageAttendance: true,
+      manageAppointments: true,
+      manageUsers: false,
+    };
+  }
+
+  return {
+    manageAttendance: false,
+    manageAppointments: false,
+    manageUsers: false,
+  };
+};
+
 const toRecord = (document: UserAccessDocument): UserAccessRecord => ({
+  ...(() => {
+    const role = toSafeRole(document.role);
+    const defaults = getDefaultPermissionsForRole(role);
+
+    return {
+      role,
+      permissions: {
+        manageAttendance:
+          document.manageAttendance ?? defaults.manageAttendance,
+        manageAppointments:
+          document.manageAppointments ?? defaults.manageAppointments,
+        manageUsers: document.manageUsers ?? defaults.manageUsers,
+      },
+    };
+  })(),
   id: document.$id,
   email: document.email,
-  role: toSafeRole(document.role),
   isActive: Boolean(document.isActive),
   updatedBy: document.updatedBy,
   updatedAt: document.updatedAt ?? document.$updatedAt,
@@ -98,6 +148,7 @@ export const accessControlService = {
     role: UserAccessRole;
     isActive: boolean;
     updatedBy: string;
+    permissions?: UserPermissions;
   }) {
     assertConfigured();
 
@@ -107,6 +158,13 @@ export const accessControlService = {
       email: normalizedEmail,
       role: input.role,
       isActive: input.isActive,
+      ...(input.permissions
+        ? {
+            manageAttendance: input.permissions.manageAttendance,
+            manageAppointments: input.permissions.manageAppointments,
+            manageUsers: input.permissions.manageUsers,
+          }
+        : {}),
       updatedBy: input.updatedBy,
     };
 

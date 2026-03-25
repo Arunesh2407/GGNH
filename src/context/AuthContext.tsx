@@ -16,7 +16,11 @@ import {
 } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
-import { accessControlService } from "@/services/accessControlService";
+import {
+  accessControlService,
+  getDefaultPermissionsForRole,
+  type UserPermissions,
+} from "@/services/accessControlService";
 
 type AuthRole = "owner" | "editor" | "viewer";
 
@@ -61,6 +65,7 @@ const resolveRoleFromClaims = (claimValue: unknown): AuthRole | null => {
 type ResolvedAccess = {
   role: AuthRole;
   isActive: boolean;
+  permissions: UserPermissions;
 };
 
 type RegisterResult = {
@@ -110,7 +115,11 @@ const resolveUserAccess = async (user: User): Promise<ResolvedAccess> => {
   const normalizedEmail = user.email?.trim().toLowerCase() ?? "";
 
   if (configuredSuperAdminEmails.has(normalizedEmail)) {
-    return { role: "owner", isActive: true };
+    return {
+      role: "owner",
+      isActive: true,
+      permissions: getDefaultPermissionsForRole("owner"),
+    };
   }
 
   if (accessControlService.isConfigured) {
@@ -118,9 +127,14 @@ const resolveUserAccess = async (user: User): Promise<ResolvedAccess> => {
       const record = await accessControlService.getUserByEmail(normalizedEmail);
 
       if (record) {
+        // Owner role is reserved for configured super admin emails only.
+        const resolvedRole: AuthRole =
+          record.role === "owner" ? "editor" : record.role;
+
         return {
-          role: record.role,
+          role: resolvedRole,
           isActive: record.isActive,
+          permissions: record.permissions,
         };
       }
 
@@ -137,6 +151,7 @@ const resolveUserAccess = async (user: User): Promise<ResolvedAccess> => {
       return {
         role: "viewer",
         isActive: false,
+        permissions: getDefaultPermissionsForRole("viewer"),
       };
     } catch {
       // Ignore lookup failures and continue to fallback strategies.
@@ -153,6 +168,7 @@ const resolveUserAccess = async (user: User): Promise<ResolvedAccess> => {
       return {
         role: claimedRole,
         isActive: true,
+        permissions: getDefaultPermissionsForRole(claimedRole),
       };
     }
   } catch {
@@ -163,6 +179,9 @@ const resolveUserAccess = async (user: User): Promise<ResolvedAccess> => {
     return {
       role: configuredEditorEmails.has(normalizedEmail) ? "editor" : "viewer",
       isActive: true,
+      permissions: getDefaultPermissionsForRole(
+        configuredEditorEmails.has(normalizedEmail) ? "editor" : "viewer",
+      ),
     };
   }
 
@@ -170,6 +189,7 @@ const resolveUserAccess = async (user: User): Promise<ResolvedAccess> => {
   return {
     role: "editor",
     isActive: true,
+    permissions: getDefaultPermissionsForRole("editor"),
   };
 };
 
@@ -180,8 +200,12 @@ type AuthContextValue = {
   userEmail: string;
   userRole: AuthRole;
   isAccessActive: boolean;
+  userPermissions: UserPermissions;
   canEditAttendance: boolean;
+  canManageAttendance: boolean;
+  canManageAppointments: boolean;
   canManageUsers: boolean;
+  canEditUsers: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string) => Promise<RegisterResult>;
   logout: () => Promise<void>;
@@ -196,6 +220,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState<AuthRole>("viewer");
   const [isAccessActive, setIsAccessActive] = useState(true);
+  const [userPermissions, setUserPermissions] = useState<UserPermissions>(
+    getDefaultPermissionsForRole("viewer"),
+  );
 
   useEffect(() => {
     if (!isFirebaseConfigured || !firebaseAuth) {
@@ -213,6 +240,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserEmail("");
         setUserRole("viewer");
         setIsAccessActive(true);
+        setUserPermissions(getDefaultPermissionsForRole("viewer"));
         setIsLoading(false);
         return;
       }
@@ -226,6 +254,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserEmail(user.email ?? "");
         setUserRole(access.role);
         setIsAccessActive(false);
+        setUserPermissions(access.permissions);
         await signOut(firebaseAuth);
         setIsLoading(false);
         return;
@@ -235,6 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserEmail(user.email ?? "");
       setUserRole(access.role);
       setIsAccessActive(true);
+      setUserPermissions(access.permissions);
       setIsLoading(false);
     });
 
@@ -329,8 +359,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userEmail,
       userRole,
       isAccessActive,
-      canEditAttendance: userRole === "owner" || userRole === "editor",
-      canManageUsers: userRole === "owner",
+      userPermissions,
+      canEditAttendance:
+        userPermissions.manageAttendance && userRole !== "viewer",
+      canManageAttendance: userPermissions.manageAttendance,
+      canManageAppointments: userPermissions.manageAppointments,
+      canManageUsers: userPermissions.manageUsers,
+      canEditUsers: userPermissions.manageUsers && userRole !== "viewer",
       login,
       register,
       logout,
@@ -342,6 +377,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userEmail,
       userRole,
       isAccessActive,
+      userPermissions,
       register,
     ],
   );

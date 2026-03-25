@@ -3,15 +3,24 @@ import { useAuth } from "@/context/AuthContext";
 
 type ProtectedRouteProps = {
   children: JSX.Element;
-  requiredAccess?: "authenticated" | "edit-attendance" | "manage-users";
+  requiredAccess?:
+    | "authenticated"
+    | "manage-attendance"
+    | "manage-appointments"
+    | "manage-users";
 };
 
 const ProtectedRoute = ({
   children,
   requiredAccess = "authenticated",
 }: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading, canEditAttendance, canManageUsers } =
-    useAuth();
+  const {
+    isAuthenticated,
+    isLoading,
+    canManageAttendance,
+    canManageAppointments,
+    canManageUsers,
+  } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -32,8 +41,12 @@ const ProtectedRoute = ({
     return <Navigate to="/staff" replace />;
   }
 
-  if (requiredAccess === "edit-attendance" && !canEditAttendance) {
-    return <Navigate to="/staff/attendance" replace />;
+  if (requiredAccess === "manage-attendance" && !canManageAttendance) {
+    return <Navigate to="/staff" replace />;
+  }
+
+  if (requiredAccess === "manage-appointments" && !canManageAppointments) {
+    return <Navigate to="/staff" replace />;
   }
 
   return children;

@@ -103,6 +103,7 @@ const AdminAttendance = () => {
     updateStaff,
     removeStaff,
     markAttendance,
+    clearAttendance,
     isLoading,
     error,
   } = useAttendance();
@@ -258,7 +259,13 @@ const AdminAttendance = () => {
     setIsMutating(true);
 
     try {
-      await markAttendance(date, staffId, status);
+      const currentStatus = attendanceByDate[date]?.[staffId] ?? "";
+
+      if (currentStatus === status) {
+        await clearAttendance(date, staffId);
+      } else {
+        await markAttendance(date, staffId, status);
+      }
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
