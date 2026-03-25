@@ -17,6 +17,8 @@ VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
 VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_APP_ID=
+VITE_ATTENDANCE_EDITOR_EMAILS=
+VITE_SUPER_ADMIN_EMAILS=
 
 VITE_APPWRITE_ENDPOINT=
 VITE_APPWRITE_PROJECT_ID=
@@ -24,16 +26,52 @@ VITE_APPWRITE_DATABASE_ID=
 VITE_APPWRITE_STAFF_COLLECTION_ID=
 VITE_APPWRITE_ATTENDANCE_COLLECTION_ID=
 VITE_APPWRITE_APPOINTMENT_COLLECTION_ID=
+VITE_APPWRITE_USER_ACCESS_COLLECTION_ID=
 ```
 
 ### 2) Firebase Authentication
 
 - Enable Email/Password sign-in in Firebase Auth
-- Create at least one admin user account using email/password
+- Create at least one owner account email/password and add it to `VITE_SUPER_ADMIN_EMAILS`
+- New users can self-register from `/admin/register`
+- Registered users stay pending until owner approval in Access Control
+
+### 2.1) Optional role-style control for attendance edit access
+
+- `VITE_ATTENDANCE_EDITOR_EMAILS` accepts a comma-separated list of emails
+- When this variable is empty, every authenticated account can edit attendance
+- When this variable is set, only listed emails can edit; other logged-in users are view-only
+
+Example:
+
+```env
+VITE_ATTENDANCE_EDITOR_EMAILS=owner@example.com,manager@example.com,staff1@example.com
+```
+
+### 2.2) Owner-controlled login user permissions and access
+
+- Add `VITE_SUPER_ADMIN_EMAILS` as a comma-separated list to bootstrap owner accounts
+- Example: `VITE_SUPER_ADMIN_EMAILS=owner@example.com`
+- Owners can open the in-app Access Control page and manage other login users
+
+Create an Appwrite collection for user access with fields:
+
+- `email` (string, required)
+- `role` (string, required, one of `owner`, `editor`, `viewer`)
+- `isActive` (boolean, required)
+- `updatedBy` (string, optional)
+- `updatedAt` (string, optional)
+
+Behavior:
+
+- `owner`: can manage users and edit attendance
+- `editor`: can edit attendance
+- `viewer`: read-only
+- `isActive=false`: login is blocked until owner approval
 
 ### 3) Appwrite database collections
 
-Create three collections in the configured database:
+Create four collections in the configured database:
 
 - Staff collection fields:
   - `name` (string, required)
@@ -52,6 +90,12 @@ Create three collections in the configured database:
   - `message` (string, required)
   - `status` (string, required, one of `booked`, `completed`)
   - `completedAt` (string, optional)
+- User Access collection fields:
+  - `email` (string, required)
+  - `role` (string, required)
+  - `isActive` (boolean, required)
+  - `updatedBy` (string, optional)
+  - `updatedAt` (string, optional)
 
 For quick development, allow client operations needed by the app on these collections.
 

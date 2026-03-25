@@ -16,10 +16,12 @@ import Doctors from "./pages/Doctors.tsx";
 import Contact from "./pages/Contact.tsx";
 import Gallery from "./pages/Gallery.tsx";
 import AdminLogin from "./pages/AdminLogin.tsx";
+import AdminRegister from "./pages/AdminRegister.tsx";
 import AdminAttendance from "./pages/AdminAttendance.tsx";
 import AdminAttendanceReport from "./pages/AdminAttendanceReport.tsx";
 import StaffHome from "./pages/StaffHome.tsx";
 import StaffAppointments from "./pages/StaffAppointments.tsx";
+import AdminUserAccess from "./pages/AdminUserAccess.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -42,6 +44,7 @@ const App = () => (
                 <Route path="/gallery" element={<Gallery />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin/register" element={<AdminRegister />} />
               </Route>
 
               <Route
@@ -59,6 +62,14 @@ const App = () => (
                   element={<AdminAttendanceReport />}
                 />
                 <Route path="appointments" element={<StaffAppointments />} />
+                <Route
+                  path="access-control"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-users">
+                      <AdminUserAccess />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
 
               <Route

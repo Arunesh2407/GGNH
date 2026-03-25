@@ -25,6 +25,7 @@ import {
   type StaffMember,
   useAttendance,
 } from "@/context/AttendanceContext";
+import { useAuth } from "@/context/AuthContext";
 
 const statusOptions: AttendanceStatus[] = [
   "present",
@@ -94,6 +95,7 @@ const blankStaff = {
 };
 
 const AdminAttendance = () => {
+  const { canEditAttendance } = useAuth();
   const {
     staff,
     attendanceByDate,
@@ -144,6 +146,11 @@ const AdminAttendance = () => {
   };
 
   const handleAddStaff = async () => {
+    if (!canEditAttendance) {
+      toast.error("Your account has view-only access.");
+      return;
+    }
+
     if (!newStaff.name.trim() || !newStaff.role.trim()) {
       toast.error("Name and role are required to add a staff member.");
       return;
@@ -178,6 +185,11 @@ const AdminAttendance = () => {
   };
 
   const saveEdit = async (id: string) => {
+    if (!canEditAttendance) {
+      toast.error("Your account has view-only access.");
+      return;
+    }
+
     if (!editingStaff.name.trim() || !editingStaff.role.trim()) {
       toast.error("Name and role are required.");
       return;
@@ -208,6 +220,11 @@ const AdminAttendance = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canEditAttendance) {
+      toast.error("Your account has view-only access.");
+      return;
+    }
+
     const confirmed = window.confirm("Remove this staff member?");
     if (!confirmed) {
       return;
@@ -233,6 +250,11 @@ const AdminAttendance = () => {
     staffId: string,
     status: AttendanceStatus,
   ) => {
+    if (!canEditAttendance) {
+      toast.error("Your account has view-only access.");
+      return;
+    }
+
     setIsMutating(true);
 
     try {
@@ -398,6 +420,7 @@ const AdminAttendance = () => {
                   setEditMode((prev) => !prev);
                   setEditingId(null);
                 }}
+                disabled={!canEditAttendance}
               >
                 <UserCog className="w-4 h-4" />
                 {editMode ? "Exit Edit Mode" : "Edit Mode"}
@@ -416,6 +439,13 @@ const AdminAttendance = () => {
             {error ? (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 {error}
+              </div>
+            ) : null}
+
+            {!canEditAttendance ? (
+              <div className="rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                Your account has view-only access. Contact an owner to enable
+                attendance editing.
               </div>
             ) : null}
 
@@ -457,7 +487,7 @@ const AdminAttendance = () => {
               </div>
             </div>
 
-            {editMode ? (
+            {editMode && canEditAttendance ? (
               <div className="rounded-lg border bg-background p-4">
                 <h3 className="font-semibold mb-3">Add Staff Member</h3>
                 <div className="grid md:grid-cols-4 gap-2">
@@ -615,7 +645,7 @@ const AdminAttendance = () => {
                                   option,
                                 )
                               }
-                              disabled={isMutating}
+                              disabled={isMutating || !canEditAttendance}
                               className={`px-2.5 py-1 text-xs rounded border transition-colors ${
                                 status && status === option
                                   ? statusClasses[option]

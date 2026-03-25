@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
-import { ClipboardList, UserCheck } from "lucide-react";
+import { ClipboardList, LockKeyhole, UserCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/context/AuthContext";
 
-const options = [
+const baseOptions = [
   {
     title: "Attendance",
     description: "Mark and manage daily staff attendance.",
@@ -18,6 +19,21 @@ const options = [
 ];
 
 const StaffHome = () => {
+  const { canManageUsers } = useAuth();
+  const options = [
+    ...baseOptions,
+    ...(canManageUsers
+      ? [
+          {
+            title: "Access Control",
+            description: "Manage login users, roles, and account access.",
+            to: "/staff/access-control",
+            icon: LockKeyhole,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <main className="min-h-screen pt-28 pb-16 px-4 bg-muted/30">
       <div className="max-w-6xl mx-auto space-y-6">

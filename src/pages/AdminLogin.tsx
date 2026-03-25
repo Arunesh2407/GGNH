@@ -109,6 +109,17 @@ const AdminLogin = () => {
               </Button>
             </form>
 
+            <div className="mt-4 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+              New user?{" "}
+              <Link
+                to="/admin/register"
+                className="text-primary hover:underline"
+              >
+                Create account
+              </Link>{" "}
+              and wait for super admin approval.
+            </div>
+
             <Link
               to="/"
               className="inline-block mt-4 text-sm text-primary hover:underline"

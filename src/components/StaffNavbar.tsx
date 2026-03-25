@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ClipboardList,
   Home,
+  LockKeyhole,
   LogOut,
   Menu,
   ShieldCheck,
@@ -15,7 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 const StaffNavbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, canManageUsers } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -38,6 +39,15 @@ const StaffNavbar = () => {
       label: "Appointments",
       icon: ClipboardList,
     },
+    ...(canManageUsers
+      ? [
+          {
+            to: "/staff/access-control",
+            label: "Access",
+            icon: LockKeyhole,
+          },
+        ]
+      : []),
   ];
 
   const handleLogout = async () => {

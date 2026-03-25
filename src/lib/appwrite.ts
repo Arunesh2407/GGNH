@@ -12,6 +12,8 @@ export const appwriteConfig = {
     .VITE_APPWRITE_ATTENDANCE_COLLECTION_ID,
   appointmentCollectionId: import.meta.env
     .VITE_APPWRITE_APPOINTMENT_COLLECTION_ID,
+  userAccessCollectionId: import.meta.env
+    .VITE_APPWRITE_USER_ACCESS_COLLECTION_ID,
 };
 
 export const isAppwriteConfigured = Boolean(
@@ -24,6 +26,10 @@ export const isAppwriteConfigured = Boolean(
 
 export const isAppointmentStorageConfigured = Boolean(
   isAppwriteConfigured && appwriteConfig.appointmentCollectionId,
+);
+
+export const isUserAccessStorageConfigured = Boolean(
+  isAppwriteConfigured && appwriteConfig.userAccessCollectionId,
 );
 
 const client = new Client();

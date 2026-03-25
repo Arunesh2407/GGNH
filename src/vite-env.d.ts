@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_SMS_WEBHOOK_URL?: string;
   readonly VITE_WHATSAPP_WEBHOOK_URL?: string;
+  readonly VITE_ATTENDANCE_EDITOR_EMAILS?: string;
+  readonly VITE_SUPER_ADMIN_EMAILS?: string;
   readonly VITE_FIREBASE_API_KEY?: string;
   readonly VITE_FIREBASE_AUTH_DOMAIN?: string;
   readonly VITE_FIREBASE_PROJECT_ID?: string;
@@ -13,6 +15,7 @@ interface ImportMetaEnv {
   readonly VITE_APPWRITE_STAFF_COLLECTION_ID?: string;
   readonly VITE_APPWRITE_ATTENDANCE_COLLECTION_ID?: string;
   readonly VITE_APPWRITE_APPOINTMENT_COLLECTION_ID?: string;
+  readonly VITE_APPWRITE_USER_ACCESS_COLLECTION_ID?: string;
 }
 
 interface ImportMeta {
