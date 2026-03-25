@@ -22,7 +22,13 @@ import {
   type UserPermissions,
 } from "@/services/accessControlService";
 
-type AuthRole = "owner" | "editor" | "viewer";
+type AuthRole =
+  | "owner"
+  | "editor"
+  | "viewer"
+  | "store-manager"
+  | "department-head"
+  | "auditor";
 
 const toNormalizedEmailSet = (value?: string) =>
   new Set(
@@ -57,6 +63,18 @@ const resolveRoleFromClaims = (claimValue: unknown): AuthRole | null => {
 
   if (normalized === "viewer") {
     return "viewer";
+  }
+
+  if (normalized === "store-manager" || normalized === "store_manager") {
+    return "store-manager";
+  }
+
+  if (normalized === "department-head" || normalized === "department_head") {
+    return "department-head";
+  }
+
+  if (normalized === "auditor") {
+    return "auditor";
   }
 
   return null;
@@ -205,6 +223,8 @@ type AuthContextValue = {
   canManageAttendance: boolean;
   canManageAppointments: boolean;
   canManageUsers: boolean;
+  canManageInventory: boolean;
+  canViewInventoryReports: boolean;
   canEditUsers: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string) => Promise<RegisterResult>;
@@ -365,6 +385,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       canManageAttendance: userPermissions.manageAttendance,
       canManageAppointments: userPermissions.manageAppointments,
       canManageUsers: userPermissions.manageUsers,
+      canManageInventory: userPermissions.manageInventory,
+      canViewInventoryReports:
+        userPermissions.manageInventory ||
+        userPermissions.manageInventoryReports,
       canEditUsers: userPermissions.manageUsers && userRole !== "viewer",
       login,
       register,

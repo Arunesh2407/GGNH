@@ -7,7 +7,9 @@ type ProtectedRouteProps = {
     | "authenticated"
     | "manage-attendance"
     | "manage-appointments"
-    | "manage-users";
+    | "manage-users"
+    | "manage-inventory"
+    | "view-inventory-reports";
 };
 
 const ProtectedRoute = ({
@@ -20,6 +22,8 @@ const ProtectedRoute = ({
     canManageAttendance,
     canManageAppointments,
     canManageUsers,
+    canManageInventory,
+    canViewInventoryReports,
   } = useAuth();
   const location = useLocation();
 
@@ -46,6 +50,14 @@ const ProtectedRoute = ({
   }
 
   if (requiredAccess === "manage-appointments" && !canManageAppointments) {
+    return <Navigate to="/staff" replace />;
+  }
+
+  if (requiredAccess === "manage-inventory" && !canManageInventory) {
+    return <Navigate to="/staff" replace />;
+  }
+
+  if (requiredAccess === "view-inventory-reports" && !canViewInventoryReports) {
     return <Navigate to="/staff" replace />;
   }
 

@@ -14,6 +14,18 @@ export const appwriteConfig = {
     .VITE_APPWRITE_APPOINTMENT_COLLECTION_ID,
   userAccessCollectionId: import.meta.env
     .VITE_APPWRITE_USER_ACCESS_COLLECTION_ID,
+  inventoryCategoryCollectionId: import.meta.env
+    .VITE_APPWRITE_INVENTORY_CATEGORY_COLLECTION_ID,
+  inventoryItemCollectionId: import.meta.env
+    .VITE_APPWRITE_INVENTORY_ITEM_COLLECTION_ID,
+  inventorySupplierCollectionId: import.meta.env
+    .VITE_APPWRITE_INVENTORY_SUPPLIER_COLLECTION_ID,
+  inventoryStockReceiptCollectionId: import.meta.env
+    .VITE_APPWRITE_INVENTORY_STOCK_RECEIPT_COLLECTION_ID,
+  inventoryStockLedgerCollectionId: import.meta.env
+    .VITE_APPWRITE_INVENTORY_STOCK_LEDGER_COLLECTION_ID,
+  inventoryDepartmentCollectionId: import.meta.env
+    .VITE_APPWRITE_INVENTORY_DEPARTMENT_COLLECTION_ID,
 };
 
 export const isAppwriteConfigured = Boolean(
@@ -30,6 +42,19 @@ export const isAppointmentStorageConfigured = Boolean(
 
 export const isUserAccessStorageConfigured = Boolean(
   isAppwriteConfigured && appwriteConfig.userAccessCollectionId,
+);
+
+export const isInventoryMasterStorageConfigured = Boolean(
+  isAppwriteConfigured &&
+  appwriteConfig.inventoryCategoryCollectionId &&
+  appwriteConfig.inventoryItemCollectionId &&
+  appwriteConfig.inventorySupplierCollectionId,
+);
+
+export const isStockReceivingStorageConfigured = Boolean(
+  isInventoryMasterStorageConfigured &&
+  appwriteConfig.inventoryStockReceiptCollectionId &&
+  appwriteConfig.inventoryStockLedgerCollectionId,
 );
 
 const client = new Client();

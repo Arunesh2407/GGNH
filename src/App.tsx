@@ -22,6 +22,12 @@ import AdminAttendanceReport from "./pages/AdminAttendanceReport.tsx";
 import StaffHome from "./pages/StaffHome.tsx";
 import StaffAppointments from "./pages/StaffAppointments.tsx";
 import AdminUserAccess from "./pages/AdminUserAccess.tsx";
+import InventoryHome from "./pages/inventory/InventoryHome.tsx";
+import ItemCategories from "./pages/inventory/ItemCategories.tsx";
+import ItemMaster from "./pages/inventory/ItemMaster.tsx";
+import Suppliers from "./pages/inventory/Suppliers.tsx";
+import StockReceiving from "./pages/inventory/StockReceiving.tsx";
+import InventoryReports from "./pages/inventory/InventoryReports.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -85,6 +91,54 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAccess="manage-users">
                       <AdminUserAccess />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="inventory"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-inventory">
+                      <InventoryHome />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="inventory/categories"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-inventory">
+                      <ItemCategories />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="inventory/items"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-inventory">
+                      <ItemMaster />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="inventory/suppliers"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-inventory">
+                      <Suppliers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="inventory/stock-receiving"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-inventory">
+                      <StockReceiving />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="inventory/reports"
+                  element={
+                    <ProtectedRoute requiredAccess="view-inventory-reports">
+                      <InventoryReports />
                     </ProtectedRoute>
                   }
                 />

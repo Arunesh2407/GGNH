@@ -1,11 +1,22 @@
 import { Link } from "react-router-dom";
-import { ClipboardList, LockKeyhole, UserCheck } from "lucide-react";
+import {
+  Boxes,
+  ClipboardList,
+  FileSearch,
+  LockKeyhole,
+  UserCheck,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 
 const StaffHome = () => {
-  const { canManageAttendance, canManageAppointments, canManageUsers } =
-    useAuth();
+  const {
+    canManageAttendance,
+    canManageAppointments,
+    canManageUsers,
+    canManageInventory,
+    canViewInventoryReports,
+  } = useAuth();
   const options = [
     ...(canManageAttendance
       ? [
@@ -34,6 +45,27 @@ const StaffHome = () => {
             description: "Manage login users, roles, and account access.",
             to: "/staff/access-control",
             icon: LockKeyhole,
+          },
+        ]
+      : []),
+    ...(canManageInventory
+      ? [
+          {
+            title: "Inventory",
+            description:
+              "Manage categories, items, suppliers, and stock receiving.",
+            to: "/staff/inventory",
+            icon: Boxes,
+          },
+        ]
+      : []),
+    ...(!canManageInventory && canViewInventoryReports
+      ? [
+          {
+            title: "Inventory Reports",
+            description: "View stock availability and item tracing reports.",
+            to: "/staff/inventory/reports",
+            icon: FileSearch,
           },
         ]
       : []),

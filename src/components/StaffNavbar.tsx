@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
+  Boxes,
   ClipboardList,
+  FileSearch,
   Home,
   LockKeyhole,
   LogOut,
@@ -16,8 +18,14 @@ import { useAuth } from "@/context/AuthContext";
 const StaffNavbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, canManageAttendance, canManageAppointments, canManageUsers } =
-    useAuth();
+  const {
+    logout,
+    canManageAttendance,
+    canManageAppointments,
+    canManageUsers,
+    canManageInventory,
+    canViewInventoryReports,
+  } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -52,6 +60,24 @@ const StaffNavbar = () => {
             to: "/staff/access-control",
             label: "Access",
             icon: LockKeyhole,
+          },
+        ]
+      : []),
+    ...(canManageInventory
+      ? [
+          {
+            to: "/staff/inventory",
+            label: "Inventory",
+            icon: Boxes,
+          },
+        ]
+      : []),
+    ...(!canManageInventory && canViewInventoryReports
+      ? [
+          {
+            to: "/staff/inventory/reports",
+            label: "Inventory Reports",
+            icon: FileSearch,
           },
         ]
       : []),

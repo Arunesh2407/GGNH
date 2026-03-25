@@ -5,12 +5,20 @@ import {
   isUserAccessStorageConfigured,
 } from "@/lib/appwrite";
 
-export type UserAccessRole = "owner" | "editor" | "viewer";
+export type UserAccessRole =
+  | "owner"
+  | "editor"
+  | "viewer"
+  | "store-manager"
+  | "department-head"
+  | "auditor";
 
 export type UserPermissions = {
   manageAttendance: boolean;
   manageAppointments: boolean;
   manageUsers: boolean;
+  manageInventory: boolean;
+  manageInventoryReports: boolean;
 };
 
 export type UserAccessRecord = {
@@ -30,6 +38,8 @@ type UserAccessDocument = Models.Document & {
   manageAttendance?: boolean;
   manageAppointments?: boolean;
   manageUsers?: boolean;
+  manageInventory?: boolean;
+  manageInventoryReports?: boolean;
   updatedBy?: string;
   updatedAt?: string;
 };
@@ -53,6 +63,18 @@ const toSafeRole = (role: string): UserAccessRole => {
     return "editor";
   }
 
+  if (normalized === "store-manager" || normalized === "store_manager") {
+    return "store-manager";
+  }
+
+  if (normalized === "department-head" || normalized === "department_head") {
+    return "department-head";
+  }
+
+  if (normalized === "auditor") {
+    return "auditor";
+  }
+
   return "viewer";
 };
 
@@ -64,6 +86,38 @@ export const getDefaultPermissionsForRole = (
       manageAttendance: true,
       manageAppointments: true,
       manageUsers: true,
+      manageInventory: true,
+      manageInventoryReports: true,
+    };
+  }
+
+  if (role === "store-manager") {
+    return {
+      manageAttendance: false,
+      manageAppointments: false,
+      manageUsers: false,
+      manageInventory: true,
+      manageInventoryReports: true,
+    };
+  }
+
+  if (role === "department-head") {
+    return {
+      manageAttendance: false,
+      manageAppointments: false,
+      manageUsers: false,
+      manageInventory: false,
+      manageInventoryReports: true,
+    };
+  }
+
+  if (role === "auditor") {
+    return {
+      manageAttendance: false,
+      manageAppointments: false,
+      manageUsers: false,
+      manageInventory: false,
+      manageInventoryReports: true,
     };
   }
 
@@ -72,6 +126,8 @@ export const getDefaultPermissionsForRole = (
       manageAttendance: true,
       manageAppointments: true,
       manageUsers: false,
+      manageInventory: true,
+      manageInventoryReports: true,
     };
   }
 
@@ -79,6 +135,8 @@ export const getDefaultPermissionsForRole = (
     manageAttendance: false,
     manageAppointments: false,
     manageUsers: false,
+    manageInventory: false,
+    manageInventoryReports: false,
   };
 };
 
@@ -95,6 +153,9 @@ const toRecord = (document: UserAccessDocument): UserAccessRecord => ({
         manageAppointments:
           document.manageAppointments ?? defaults.manageAppointments,
         manageUsers: document.manageUsers ?? defaults.manageUsers,
+        manageInventory: document.manageInventory ?? defaults.manageInventory,
+        manageInventoryReports:
+          document.manageInventoryReports ?? defaults.manageInventoryReports,
       },
     };
   })(),
@@ -163,6 +224,8 @@ export const accessControlService = {
             manageAttendance: input.permissions.manageAttendance,
             manageAppointments: input.permissions.manageAppointments,
             manageUsers: input.permissions.manageUsers,
+            manageInventory: input.permissions.manageInventory,
+            manageInventoryReports: input.permissions.manageInventoryReports,
           }
         : {}),
       updatedBy: input.updatedBy,

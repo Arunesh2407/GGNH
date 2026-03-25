@@ -35,6 +35,9 @@ const roleBadgeVariant: Record<
   owner: "default",
   editor: "secondary",
   viewer: "outline",
+  "store-manager": "secondary",
+  "department-head": "outline",
+  auditor: "outline",
 };
 
 const defaultFormState = {
@@ -244,7 +247,9 @@ const AdminUserAccess = () => {
                 then create a collection with fields: email (string), role
                 (string), isActive (boolean), manageAttendance (boolean,
                 optional), manageAppointments (boolean, optional), manageUsers
-                (boolean, optional), updatedBy (string), updatedAt (string).
+                (boolean, optional), manageInventory (boolean, optional),
+                manageInventoryReports (boolean, optional), updatedBy (string),
+                updatedAt (string).
               </div>
             </CardContent>
           </Card>
@@ -307,6 +312,9 @@ const AdminUserAccess = () => {
                 }
               >
                 <option value="editor">Editor</option>
+                <option value="store-manager">Store Manager</option>
+                <option value="department-head">Department Head</option>
+                <option value="auditor">Auditor</option>
                 <option value="viewer">Viewer</option>
               </select>
               <div className="md:col-span-4 rounded-md border border-input bg-background p-3 text-sm space-y-2">
@@ -352,6 +360,34 @@ const AdminUserAccess = () => {
                     }
                   />
                   Manage access control
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.permissions.manageInventory}
+                    disabled={!canEditUsers}
+                    onChange={(event) =>
+                      handleFormPermissionChange(
+                        "manageInventory",
+                        event.target.checked,
+                      )
+                    }
+                  />
+                  Manage inventory
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.permissions.manageInventoryReports}
+                    disabled={!canEditUsers}
+                    onChange={(event) =>
+                      handleFormPermissionChange(
+                        "manageInventoryReports",
+                        event.target.checked,
+                      )
+                    }
+                  />
+                  View inventory reports
                 </label>
               </div>
               <label className="h-10 px-3 rounded-md border border-input bg-background flex items-center gap-2 text-sm">
@@ -400,22 +436,14 @@ const AdminUserAccess = () => {
               </div>
             ) : (
               <div className="rounded-md border bg-background">
-                <Table className="table-fixed">
+                <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[250px]">Email</TableHead>
-                      <TableHead className="w-[110px]">Role</TableHead>
-                      <TableHead className="w-[110px]">Status</TableHead>
-                      <TableHead className="w-[90px] text-center">
-                        Attendance
-                      </TableHead>
-                      <TableHead className="w-[90px] text-center">
-                        Appointments
-                      </TableHead>
-                      <TableHead className="w-[80px] text-center">
-                        Access
-                      </TableHead>
-                      <TableHead className="w-[130px]">Actions</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Permissions</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -425,7 +453,7 @@ const AdminUserAccess = () => {
 
                       return (
                         <TableRow key={record.id}>
-                          <TableCell className="font-medium max-w-[250px] truncate">
+                          <TableCell className="font-medium break-all">
                             {record.email}
                           </TableCell>
                           <TableCell>
@@ -442,56 +470,105 @@ const AdminUserAccess = () => {
                               {record.isActive ? "Active" : "Disabled"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-center">
-                            <input
-                              type="checkbox"
-                              checked={record.permissions.manageAttendance}
-                              disabled={
-                                isSaving || isOwnerRole || !canEditUsers
-                              }
-                              onChange={(event) =>
-                                void handleQuickUpdate(record, {
-                                  permissions: {
-                                    ...record.permissions,
-                                    manageAttendance: event.target.checked,
-                                  },
-                                })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <input
-                              type="checkbox"
-                              checked={record.permissions.manageAppointments}
-                              disabled={
-                                isSaving || isOwnerRole || !canEditUsers
-                              }
-                              onChange={(event) =>
-                                void handleQuickUpdate(record, {
-                                  permissions: {
-                                    ...record.permissions,
-                                    manageAppointments: event.target.checked,
-                                  },
-                                })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <input
-                              type="checkbox"
-                              checked={record.permissions.manageUsers}
-                              disabled={
-                                isSaving || isOwnerRole || !canEditUsers
-                              }
-                              onChange={(event) =>
-                                void handleQuickUpdate(record, {
-                                  permissions: {
-                                    ...record.permissions,
-                                    manageUsers: event.target.checked,
-                                  },
-                                })
-                              }
-                            />
+                          <TableCell>
+                            <div className="space-y-2 text-sm">
+                              <label className="flex items-center justify-between gap-3">
+                                <span>Attendance</span>
+                                <input
+                                  type="checkbox"
+                                  checked={record.permissions.manageAttendance}
+                                  disabled={
+                                    isSaving || isOwnerRole || !canEditUsers
+                                  }
+                                  onChange={(event) =>
+                                    void handleQuickUpdate(record, {
+                                      permissions: {
+                                        ...record.permissions,
+                                        manageAttendance: event.target.checked,
+                                      },
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center justify-between gap-3">
+                                <span>Appointments</span>
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    record.permissions.manageAppointments
+                                  }
+                                  disabled={
+                                    isSaving || isOwnerRole || !canEditUsers
+                                  }
+                                  onChange={(event) =>
+                                    void handleQuickUpdate(record, {
+                                      permissions: {
+                                        ...record.permissions,
+                                        manageAppointments:
+                                          event.target.checked,
+                                      },
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center justify-between gap-3">
+                                <span>Access Control</span>
+                                <input
+                                  type="checkbox"
+                                  checked={record.permissions.manageUsers}
+                                  disabled={
+                                    isSaving || isOwnerRole || !canEditUsers
+                                  }
+                                  onChange={(event) =>
+                                    void handleQuickUpdate(record, {
+                                      permissions: {
+                                        ...record.permissions,
+                                        manageUsers: event.target.checked,
+                                      },
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center justify-between gap-3">
+                                <span>Inventory</span>
+                                <input
+                                  type="checkbox"
+                                  checked={record.permissions.manageInventory}
+                                  disabled={
+                                    isSaving || isOwnerRole || !canEditUsers
+                                  }
+                                  onChange={(event) =>
+                                    void handleQuickUpdate(record, {
+                                      permissions: {
+                                        ...record.permissions,
+                                        manageInventory: event.target.checked,
+                                      },
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="flex items-center justify-between gap-3">
+                                <span>Reports</span>
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    record.permissions.manageInventoryReports
+                                  }
+                                  disabled={
+                                    isSaving || isOwnerRole || !canEditUsers
+                                  }
+                                  onChange={(event) =>
+                                    void handleQuickUpdate(record, {
+                                      permissions: {
+                                        ...record.permissions,
+                                        manageInventoryReports:
+                                          event.target.checked,
+                                      },
+                                    })
+                                  }
+                                />
+                              </label>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-2">
@@ -508,6 +585,13 @@ const AdminUserAccess = () => {
                                 }
                               >
                                 <option value="editor">Editor</option>
+                                <option value="store-manager">
+                                  Store Manager
+                                </option>
+                                <option value="department-head">
+                                  Department Head
+                                </option>
+                                <option value="auditor">Auditor</option>
                                 <option value="viewer">Viewer</option>
                               </select>
                               <Button
@@ -546,7 +630,7 @@ const AdminUserAccess = () => {
                     {records.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={5}
                           className="text-center text-muted-foreground"
                         >
                           No user access records found. Add one above.
