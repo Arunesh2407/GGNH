@@ -3,12 +3,22 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import ScrollToTop from "@/components/ScrollToTop";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PublicLayout from "@/components/layout/PublicLayout";
 import StaffLayout from "@/components/layout/StaffLayout";
 import { AttendanceProvider } from "@/context/AttendanceContext";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Index from "./pages/Index.tsx";
 import About from "./pages/About.tsx";
 import Services from "./pages/Services.tsx";
@@ -32,11 +42,42 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
+const SessionTimeoutWarning = () => {
+  const { isInactivityWarningVisible, extendSession, logout } = useAuth();
+
+  return (
+    <AlertDialog open={isInactivityWarningVisible}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Session Expiring Soon</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have been inactive for a while. You will be logged out in 5
+            minutes unless you stay signed in.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={extendSession}>
+            Stay Logged In
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              void logout();
+            }}
+          >
+            Logout Now
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
         <AttendanceProvider>
+          <SessionTimeoutWarning />
           <Toaster />
           <Sonner />
           <BrowserRouter>

@@ -1,8 +1,10 @@
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -218,6 +220,7 @@ type AuthContextValue = {
   userEmail: string;
   userRole: AuthRole;
   isAccessActive: boolean;
+  isInactivityWarningVisible: boolean;
   userPermissions: UserPermissions;
   canEditAttendance: boolean;
   canManageAttendance: boolean;
@@ -226,12 +229,16 @@ type AuthContextValue = {
   canManageInventory: boolean;
   canViewInventoryReports: boolean;
   canEditUsers: boolean;
+  extendSession: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string) => Promise<RegisterResult>;
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
+const INACTIVITY_WARNING_MS = 25 * 60 * 1000;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -240,9 +247,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState<AuthRole>("viewer");
   const [isAccessActive, setIsAccessActive] = useState(true);
+  const [isInactivityWarningVisible, setIsInactivityWarningVisible] =
+    useState(false);
   const [userPermissions, setUserPermissions] = useState<UserPermissions>(
     getDefaultPermissionsForRole("viewer"),
   );
+  const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearInactivityTimers = useCallback(() => {
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current);
+      warningTimeoutRef.current = null;
+    }
+
+    if (logoutTimeoutRef.current) {
+      clearTimeout(logoutTimeoutRef.current);
+      logoutTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleInactivityTimers = useCallback(() => {
+    clearInactivityTimers();
+    setIsInactivityWarningVisible(false);
+
+    warningTimeoutRef.current = setTimeout(() => {
+      setIsInactivityWarningVisible(true);
+    }, INACTIVITY_WARNING_MS);
+
+    logoutTimeoutRef.current = setTimeout(async () => {
+      if (!firebaseAuth) {
+        return;
+      }
+
+      setIsInactivityWarningVisible(false);
+      clearInactivityTimers();
+      await signOut(firebaseAuth);
+    }, INACTIVITY_TIMEOUT_MS);
+  }, [clearInactivityTimers]);
+
+  const extendSession = useCallback(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    scheduleInactivityTimers();
+  }, [isAuthenticated, scheduleInactivityTimers]);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !firebaseAuth) {
@@ -257,6 +307,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsAuthenticated(Boolean(user));
 
       if (!user) {
+        clearInactivityTimers();
+        setIsInactivityWarningVisible(false);
         setUserEmail("");
         setUserRole("viewer");
         setIsAccessActive(true);
@@ -268,6 +320,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const access = await resolveUserAccess(user);
 
       if (!access.isActive) {
+        clearInactivityTimers();
+        setIsInactivityWarningVisible(false);
         setAuthError(
           "Account pending approval. Please wait for super admin access approval.",
         );
@@ -285,13 +339,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserRole(access.role);
       setIsAccessActive(true);
       setUserPermissions(access.permissions);
+      scheduleInactivityTimers();
       setIsLoading(false);
     });
 
-    return unsubscribe;
-  }, []);
+    return () => {
+      clearInactivityTimers();
+      unsubscribe();
+    };
+  }, [clearInactivityTimers, scheduleInactivityTimers]);
 
-  const login = async (email: string, password: string) => {
+  useEffect(() => {
+    if (!isAuthenticated) {
+      clearInactivityTimers();
+      setIsInactivityWarningVisible(false);
+      return;
+    }
+
+    const onActivity = () => {
+      scheduleInactivityTimers();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        scheduleInactivityTimers();
+      }
+    };
+
+    window.addEventListener("mousedown", onActivity);
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("touchstart", onActivity);
+    window.addEventListener("scroll", onActivity);
+    window.addEventListener("click", onActivity);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("mousedown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("touchstart", onActivity);
+      window.removeEventListener("scroll", onActivity);
+      window.removeEventListener("click", onActivity);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [clearInactivityTimers, isAuthenticated, scheduleInactivityTimers]);
+
+  const login = useCallback(async (email: string, password: string) => {
     if (!isFirebaseConfigured || !firebaseAuth) {
       setAuthError(
         "Firebase is not configured. Add Firebase env variables in .env.",
@@ -307,9 +399,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAuthError("Invalid email or password.");
       return false;
     }
-  };
+  }, []);
 
-  const register = async (email: string, password: string) => {
+  const register = useCallback(async (email: string, password: string) => {
     if (!isFirebaseConfigured || !firebaseAuth) {
       const message =
         "Firebase is not configured. Add Firebase env variables in .env.";
@@ -361,15 +453,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAuthError(message);
       return { ok: false, error: message };
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     if (!firebaseAuth) {
       return;
     }
 
+    clearInactivityTimers();
+    setIsInactivityWarningVisible(false);
     await signOut(firebaseAuth);
-  };
+  }, [clearInactivityTimers]);
 
   const value = useMemo(
     () => ({
@@ -379,6 +473,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userEmail,
       userRole,
       isAccessActive,
+      isInactivityWarningVisible,
       userPermissions,
       canEditAttendance:
         userPermissions.manageAttendance && userRole !== "viewer",
@@ -390,6 +485,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         userPermissions.manageInventory ||
         userPermissions.manageInventoryReports,
       canEditUsers: userPermissions.manageUsers && userRole !== "viewer",
+      extendSession,
       login,
       register,
       logout,
@@ -401,8 +497,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userEmail,
       userRole,
       isAccessActive,
+      isInactivityWarningVisible,
       userPermissions,
+      extendSession,
+      login,
       register,
+      logout,
     ],
   );
 
