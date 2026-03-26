@@ -208,21 +208,31 @@ const AdminUserAccess = () => {
       return;
     }
 
-    if (!window.confirm(`Remove access record for ${record.email}?`)) {
+    if (
+      !window.confirm(
+        `Delete ${record.email} from Firebase auth, Firestore, and access control?`,
+      )
+    ) {
       return;
     }
 
     setIsSaving(true);
 
     try {
-      await accessControlService.removeUserById(record.id);
-      toast.success("User access removed.");
+      await accessControlService.removeUserEverywhere({
+        accessRecordId: record.id,
+        email: record.email,
+        deletedBy: userEmail || "system",
+      });
+      toast.success(
+        "User removed from Firebase, Firestore, and access control.",
+      );
       await loadUsers();
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "Unable to remove user access.";
+          : "Unable to delete user account across systems.";
       toast.error(message);
     } finally {
       setIsSaving(false);

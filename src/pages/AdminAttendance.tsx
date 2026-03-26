@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Download, Pencil, Plus, Trash2, UserCog } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -108,12 +109,14 @@ const AdminAttendance = () => {
     error,
   } = useAttendance();
 
-  const [selectedDate] = useState(getTodayDate);
+  const [selectedDate, setSelectedDate] = useState(getTodayDate);
   const [editMode, setEditMode] = useState(false);
   const [newStaff, setNewStaff] = useState(blankStaff);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState(blankStaff);
   const [isMutating, setIsMutating] = useState(false);
+  const todayDate = getTodayDate();
+  const isFutureDateSelected = selectedDate > todayDate;
 
   const attendanceSummary = useMemo(() => {
     const summary: Record<AttendanceStatus, number> = {
@@ -253,6 +256,11 @@ const AdminAttendance = () => {
   ) => {
     if (!canEditAttendance) {
       toast.error("Your account has view-only access.");
+      return;
+    }
+
+    if (date > getTodayDate()) {
+      toast.error("You cannot mark attendance for future dates.");
       return;
     }
 
@@ -421,6 +429,11 @@ const AdminAttendance = () => {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Link to="/staff/attendance/report">
+                <Button variant="outline" disabled={isMutating}>
+                  View Report
+                </Button>
+              </Link>
               <Button
                 variant={editMode ? "default" : "outline"}
                 onClick={() => {
@@ -470,11 +483,20 @@ const AdminAttendance = () => {
                     type="date"
                     className="mt-1 w-full sm:w-52"
                     value={selectedDate}
-                    disabled
-                    readOnly
+                    max={todayDate}
+                    onChange={(event) => {
+                      const nextDate = event.target.value;
+                      if (nextDate > getTodayDate()) {
+                        toast.error(
+                          "Future dates are not allowed for attendance updates.",
+                        );
+                        return;
+                      }
+                      setSelectedDate(nextDate);
+                    }}
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Daily attendance only (today).
+                    You can manage attendance for today and past dates.
                   </p>
                 </div>
               </div>
@@ -652,7 +674,11 @@ const AdminAttendance = () => {
                                   option,
                                 )
                               }
-                              disabled={isMutating || !canEditAttendance}
+                              disabled={
+                                isMutating ||
+                                !canEditAttendance ||
+                                isFutureDateSelected
+                              }
                               className={`px-2.5 py-1 text-xs rounded border transition-colors ${
                                 status && status === option
                                   ? statusClasses[option]

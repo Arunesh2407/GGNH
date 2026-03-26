@@ -1,9 +1,11 @@
 import { ID, Permission, Query, Role, type Models } from "appwrite";
+import { httpsCallable } from "firebase/functions";
 import {
   appwriteConfig,
   appwriteDatabases,
   isUserAccessStorageConfigured,
 } from "@/lib/appwrite";
+import { firebaseFunctions, isFirebaseConfigured } from "@/lib/firebase";
 
 export type UserAccessRole =
   | "owner"
@@ -43,6 +45,21 @@ type UserAccessDocument = Models.Document & {
   updatedBy?: string;
   updatedAt?: string;
 };
+
+type DeleteUserAccountPayload = {
+  accessRecordId: string;
+  email: string;
+  deletedBy: string;
+};
+
+type DeleteUserAccountResult = {
+  ok: boolean;
+  message?: string;
+};
+
+const deleteUserFunctionName =
+  import.meta.env.VITE_FIREBASE_DELETE_USER_FUNCTION_NAME ||
+  "deleteUserAccessAccount";
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -263,5 +280,37 @@ export const accessControlService = {
       appwriteConfig.userAccessCollectionId,
       id,
     );
+  },
+
+  async removeUserEverywhere(input: {
+    accessRecordId: string;
+    email: string;
+    deletedBy: string;
+  }) {
+    assertConfigured();
+
+    if (!isFirebaseConfigured || !firebaseFunctions) {
+      throw new Error(
+        "Firebase Functions is not configured. Configure it to delete users from Firebase and Firestore.",
+      );
+    }
+
+    const callDeleteUser = httpsCallable<
+      DeleteUserAccountPayload,
+      DeleteUserAccountResult
+    >(firebaseFunctions, deleteUserFunctionName);
+
+    const response = await callDeleteUser({
+      accessRecordId: input.accessRecordId,
+      email: normalizeEmail(input.email),
+      deletedBy: normalizeEmail(input.deletedBy),
+    });
+
+    if (!response.data?.ok) {
+      throw new Error(
+        response.data?.message ||
+          "Unable to delete user from Firebase and Appwrite.",
+      );
+    }
   },
 };

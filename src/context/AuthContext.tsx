@@ -239,6 +239,58 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 const INACTIVITY_WARNING_MS = 25 * 60 * 1000;
+const ABSOLUTE_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const SESSION_METADATA_STORAGE_KEY = "ggnh.session.metadata";
+const LOGOUT_BROADCAST_STORAGE_KEY = "ggnh.session.logoutAt";
+
+type SessionMetadata = {
+  email: string;
+  startedAt: number;
+};
+
+const readSessionMetadata = (): SessionMetadata | null => {
+  try {
+    const raw = window.localStorage.getItem(SESSION_METADATA_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<SessionMetadata>;
+
+    if (
+      typeof parsed.email !== "string" ||
+      typeof parsed.startedAt !== "number" ||
+      !Number.isFinite(parsed.startedAt)
+    ) {
+      return null;
+    }
+
+    return {
+      email: parsed.email.trim().toLowerCase(),
+      startedAt: parsed.startedAt,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const writeSessionMetadata = (metadata: SessionMetadata) => {
+  window.localStorage.setItem(
+    SESSION_METADATA_STORAGE_KEY,
+    JSON.stringify(metadata),
+  );
+};
+
+const clearSessionMetadata = () => {
+  window.localStorage.removeItem(SESSION_METADATA_STORAGE_KEY);
+};
+
+const broadcastLogout = () => {
+  window.localStorage.setItem(
+    LOGOUT_BROADCAST_STORAGE_KEY,
+    Date.now().toString(),
+  );
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -254,6 +306,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const absoluteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearInactivityTimers = useCallback(() => {
     if (warningTimeoutRef.current) {
@@ -266,6 +319,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       logoutTimeoutRef.current = null;
     }
   }, []);
+
+  const clearAbsoluteTimeout = useCallback(() => {
+    if (absoluteTimeoutRef.current) {
+      clearTimeout(absoluteTimeoutRef.current);
+      absoluteTimeoutRef.current = null;
+    }
+  }, []);
+
+  const performLogout = useCallback(
+    async (broadcast = true) => {
+      if (!firebaseAuth) {
+        return;
+      }
+
+      clearInactivityTimers();
+      clearAbsoluteTimeout();
+      setIsInactivityWarningVisible(false);
+      clearSessionMetadata();
+
+      if (broadcast) {
+        broadcastLogout();
+      }
+
+      await signOut(firebaseAuth);
+    },
+    [clearAbsoluteTimeout, clearInactivityTimers],
+  );
+
+  const scheduleAbsoluteTimeout = useCallback(
+    (startedAt: number) => {
+      clearAbsoluteTimeout();
+
+      const elapsed = Date.now() - startedAt;
+      const remaining = ABSOLUTE_SESSION_TIMEOUT_MS - elapsed;
+
+      if (remaining <= 0) {
+        setAuthError("Session expired after 24 hours. Please log in again.");
+        void performLogout();
+        return;
+      }
+
+      absoluteTimeoutRef.current = setTimeout(() => {
+        setAuthError("Session expired after 24 hours. Please log in again.");
+        void performLogout();
+      }, remaining);
+    },
+    [clearAbsoluteTimeout, performLogout],
+  );
 
   const scheduleInactivityTimers = useCallback(() => {
     clearInactivityTimers();
@@ -281,10 +382,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       setIsInactivityWarningVisible(false);
-      clearInactivityTimers();
-      await signOut(firebaseAuth);
+      setAuthError("Logged out after 30 minutes of inactivity.");
+      await performLogout();
     }, INACTIVITY_TIMEOUT_MS);
-  }, [clearInactivityTimers]);
+  }, [clearInactivityTimers, performLogout]);
 
   const extendSession = useCallback(() => {
     if (!isAuthenticated) {
@@ -308,11 +409,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!user) {
         clearInactivityTimers();
+        clearAbsoluteTimeout();
         setIsInactivityWarningVisible(false);
         setUserEmail("");
         setUserRole("viewer");
         setIsAccessActive(true);
         setUserPermissions(getDefaultPermissionsForRole("viewer"));
+        setIsLoading(false);
+        return;
+      }
+
+      const normalizedEmail = user.email?.trim().toLowerCase() ?? "";
+      const existingSession = readSessionMetadata();
+      const sessionStartedAt =
+        existingSession && existingSession.email === normalizedEmail
+          ? existingSession.startedAt
+          : Date.now();
+
+      if (!existingSession || existingSession.email !== normalizedEmail) {
+        writeSessionMetadata({
+          email: normalizedEmail,
+          startedAt: sessionStartedAt,
+        });
+      }
+
+      if (Date.now() - sessionStartedAt >= ABSOLUTE_SESSION_TIMEOUT_MS) {
+        setAuthError("Session expired after 24 hours. Please log in again.");
+        await performLogout();
         setIsLoading(false);
         return;
       }
@@ -329,7 +452,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserRole(access.role);
         setIsAccessActive(false);
         setUserPermissions(access.permissions);
-        await signOut(firebaseAuth);
+        await performLogout();
         setIsLoading(false);
         return;
       }
@@ -340,14 +463,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsAccessActive(true);
       setUserPermissions(access.permissions);
       scheduleInactivityTimers();
+      scheduleAbsoluteTimeout(sessionStartedAt);
       setIsLoading(false);
     });
 
     return () => {
       clearInactivityTimers();
+      clearAbsoluteTimeout();
       unsubscribe();
     };
-  }, [clearInactivityTimers, scheduleInactivityTimers]);
+  }, [
+    clearAbsoluteTimeout,
+    clearInactivityTimers,
+    performLogout,
+    scheduleAbsoluteTimeout,
+    scheduleInactivityTimers,
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -366,11 +497,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    const onStorageChange = (event: StorageEvent) => {
+      if (
+        event.key === LOGOUT_BROADCAST_STORAGE_KEY &&
+        event.newValue !== null &&
+        isAuthenticated
+      ) {
+        setAuthError("Session ended in another tab. Please log in again.");
+        void performLogout(false);
+      }
+    };
+
     window.addEventListener("mousedown", onActivity);
     window.addEventListener("keydown", onActivity);
     window.addEventListener("touchstart", onActivity);
     window.addEventListener("scroll", onActivity);
     window.addEventListener("click", onActivity);
+    window.addEventListener("storage", onStorageChange);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
@@ -379,9 +522,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener("touchstart", onActivity);
       window.removeEventListener("scroll", onActivity);
       window.removeEventListener("click", onActivity);
+      window.removeEventListener("storage", onStorageChange);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [clearInactivityTimers, isAuthenticated, scheduleInactivityTimers]);
+  }, [
+    clearInactivityTimers,
+    isAuthenticated,
+    performLogout,
+    scheduleInactivityTimers,
+  ]);
 
   const login = useCallback(async (email: string, password: string) => {
     if (!isFirebaseConfigured || !firebaseAuth) {
@@ -456,14 +605,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const logout = useCallback(async () => {
-    if (!firebaseAuth) {
-      return;
-    }
-
-    clearInactivityTimers();
-    setIsInactivityWarningVisible(false);
-    await signOut(firebaseAuth);
-  }, [clearInactivityTimers]);
+    await performLogout();
+  }, [performLogout]);
 
   const value = useMemo(
     () => ({

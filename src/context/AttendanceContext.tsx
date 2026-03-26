@@ -79,6 +79,12 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`;
 };
 
+const ensureNotFutureDate = (date: string) => {
+  if (date > getTodayDate()) {
+    throw new Error("Attendance cannot be changed for future dates.");
+  }
+};
+
 const AttendanceContext = createContext<AttendanceContextValue | undefined>(
   undefined,
 );
@@ -180,9 +186,7 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
     staffId: string,
     status: AttendanceStatus,
   ) => {
-    if (date !== getTodayDate()) {
-      throw new Error("Attendance can only be registered for today.");
-    }
+    ensureNotFutureDate(date);
 
     if (isAppwriteConfigured) {
       await attendanceService.markAttendance(date, staffId, status);
@@ -198,9 +202,7 @@ export const AttendanceProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const clearAttendance = async (date: string, staffId: string) => {
-    if (date !== getTodayDate()) {
-      throw new Error("Attendance can only be changed for today.");
-    }
+    ensureNotFutureDate(date);
 
     if (isAppwriteConfigured) {
       await attendanceService.clearAttendance(date, staffId);

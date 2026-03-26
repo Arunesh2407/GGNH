@@ -17,6 +17,8 @@ VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
 VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_FUNCTIONS_REGION=us-central1
+VITE_FIREBASE_DELETE_USER_FUNCTION_NAME=deleteUserAccessAccount
 VITE_ATTENDANCE_EDITOR_EMAILS=
 VITE_SUPER_ADMIN_EMAILS=
 
@@ -35,6 +37,41 @@ VITE_APPWRITE_USER_ACCESS_COLLECTION_ID=
 - Create at least one owner account email/password and add it to `VITE_SUPER_ADMIN_EMAILS`
 - New users can self-register from `/admin/register`
 - Registered users stay pending until owner approval in Access Control
+- Sessions auto logout after 30 minutes of inactivity
+- Sessions also hard-expire after 24 hours from login even if active
+
+### 2.3) Delete user from Firebase + Firestore + Appwrite
+
+Access Control now calls a Firebase Callable Function for user deletion so accounts are removed from all systems.
+
+1. Configure frontend env vars:
+
+```env
+VITE_FIREBASE_FUNCTIONS_REGION=us-central1
+VITE_FIREBASE_DELETE_USER_FUNCTION_NAME=deleteUserAccessAccount
+```
+
+2. Configure Functions backend env vars:
+
+```env
+APPWRITE_ENDPOINT=
+APPWRITE_PROJECT_ID=
+APPWRITE_API_KEY=
+APPWRITE_DATABASE_ID=
+APPWRITE_USER_ACCESS_COLLECTION_ID=
+SUPER_ADMIN_EMAILS=owner@example.com
+```
+
+3. Install and deploy functions:
+
+```bash
+cd functions
+npm install
+npm run build
+npm run deploy
+```
+
+The callable handler is in `functions/src/deleteUserAccessAccount.ts`.
 
 ### 2.1) Optional role-style control for attendance edit access
 

@@ -49,6 +49,7 @@ const AdminAttendanceReport = () => {
   const { staff, attendanceByDate, isLoading, error } = useAttendance();
   const [timelineStartDate, setTimelineStartDate] = useState(getTodayDate);
   const [timelineEndDate, setTimelineEndDate] = useState(getTodayDate);
+  const todayDate = getTodayDate();
 
   const timelineDates = useMemo(() => {
     if (
@@ -111,7 +112,8 @@ const AdminAttendanceReport = () => {
                 Attendance Timeline Report
               </CardTitle>
               <CardDescription>
-                View attendance of all staff members for a custom timeline.
+                View attendance on the website for a custom timeline. PDF
+                download is optional from the dashboard.
               </CardDescription>
             </div>
             <Link to="/staff/attendance">
@@ -140,6 +142,7 @@ const AdminAttendanceReport = () => {
                   id="timeline-start-date"
                   type="date"
                   className="mt-1 w-full sm:w-44"
+                  max={todayDate}
                   value={timelineStartDate}
                   onChange={(event) => setTimelineStartDate(event.target.value)}
                 />
@@ -156,6 +159,7 @@ const AdminAttendanceReport = () => {
                   id="timeline-end-date"
                   type="date"
                   className="mt-1 w-full sm:w-44"
+                  max={todayDate}
                   value={timelineEndDate}
                   onChange={(event) => setTimelineEndDate(event.target.value)}
                 />
