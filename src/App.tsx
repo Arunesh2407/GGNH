@@ -39,6 +39,7 @@ import Suppliers from "./pages/inventory/Suppliers.tsx";
 import StockReceiving from "./pages/inventory/StockReceiving.tsx";
 import InventoryReports from "./pages/inventory/InventoryReports.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,7 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <AttendanceProvider>
+          <Analytics />
           <SessionTimeoutWarning />
           <Toaster />
           <Sonner />
