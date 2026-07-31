@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 import ScrollReveal from "@/components/ScrollReveal";
 import SectionHeading from "@/components/SectionHeading";
 import {
@@ -17,13 +19,117 @@ import {
   Bed,
   Clock,
   Award,
-  Play,
   CheckCircle,
   ClipboardList,
   UserCheck,
   HeartPulse,
   Users,
 } from "lucide-react";
+
+const heroGalleryImages = Array.from({ length: 12 }, (_, index) => {
+  const imageNumber = index + 1;
+
+  return {
+    src: `/images/gallery/img${imageNumber}.jpeg`,
+    alt: `G G Nursing Home gallery image ${imageNumber}`,
+  };
+});
+
+const HeroGallerySlideshow = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const updatePreference = () => {
+      setPrefersReducedMotion(mediaQuery.matches);
+    };
+
+    updatePreference();
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", updatePreference);
+    } else {
+      mediaQuery.addListener(updatePreference);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener("change", updatePreference);
+      } else {
+        mediaQuery.removeListener(updatePreference);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion || isPaused || heroGalleryImages.length <= 1) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setActiveIndex(
+        (currentIndex) => (currentIndex + 1) % heroGalleryImages.length,
+      );
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isPaused, prefersReducedMotion]);
+
+  return (
+    <div
+      className="hidden lg:block absolute right-8 xl:right-16 top-[58%] -translate-y-1/2 z-20 w-[min(60vw,44rem)]"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setIsPaused(false);
+        }
+      }}
+    >
+      <div className="rounded-[2rem] border border-white/20 bg-white/10 shadow-[0_24px_80px_-30px_rgba(0,0,0,0.65)] backdrop-blur-md overflow-hidden">
+        <AspectRatio ratio={16 / 9}>
+          <div className="relative h-full w-full">
+            {heroGalleryImages.map((image, index) => (
+              <img
+                key={image.src}
+                src={image.src}
+                alt={image.alt}
+                loading={index === 0 ? "eager" : "lazy"}
+                className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-out ${
+                  index === activeIndex
+                    ? "opacity-100 scale-100"
+                    : "opacity-0 scale-105"
+                }`}
+              />
+            ))}
+
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+
+            <div className="absolute inset-x-4 bottom-4 flex items-center justify-center gap-2">
+              {heroGalleryImages.map((image, index) => (
+                <button
+                  key={image.src}
+                  type="button"
+                  aria-label={`Show gallery image ${index + 1}`}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    index === activeIndex
+                      ? "w-8 bg-white"
+                      : "w-2 bg-white/45 hover:bg-white/75"
+                  }`}
+                  onClick={() => setActiveIndex(index)}
+                />
+              ))}
+            </div>
+          </div>
+        </AspectRatio>
+      </div>
+    </div>
+  );
+};
 
 const departments = [
   {
@@ -128,7 +234,7 @@ const processSteps = [
 const Index = () => {
   return (
     <div className="min-h-screen">
-      {/* Hero Section - Full screen with video placeholder */}
+      {/* Hero Section - Full screen with gallery slideshow placeholder */}
       <section
         className="relative min-h-screen flex items-center"
         style={{ background: "var(--hero-gradient)" }}
@@ -142,10 +248,7 @@ const Index = () => {
           <div className="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/70 to-transparent" />
         </div>
 
-        {/* Video play placeholder */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
-          {/* placeholder for future video */}
-        </div>
+        <HeroGallerySlideshow />
 
         <div className="container mx-auto px-4 relative z-10 pt-36 pb-24">
           <div className="max-w-2xl">
@@ -182,13 +285,6 @@ const Index = () => {
                 </a>
               </div>
             </ScrollReveal>
-          </div>
-        </div>
-
-        {/* Video placeholder button overlay */}
-        <div className="absolute right-8 lg:right-24 top-1/2 -translate-y-1/2 hidden lg:flex">
-          <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors group">
-            <Play className="w-8 h-8 text-white ml-1 group-hover:scale-110 transition-transform" />
           </div>
         </div>
       </section>
