@@ -107,6 +107,7 @@ const AdminAttendance = () => {
     clearAttendance,
     isLoading,
     error,
+    refresh,
   } = useAttendance();
 
   const [selectedDate, setSelectedDate] = useState(getTodayDate);
@@ -172,7 +173,7 @@ const AdminAttendance = () => {
       setNewStaff(blankStaff);
       toast.success("Staff member added.");
     } catch {
-      toast.error("Unable to add staff. Check Appwrite configuration.");
+      toast.error("Unable to add staff member.");
     } finally {
       setIsMutating(false);
     }
@@ -212,7 +213,7 @@ const AdminAttendance = () => {
       setEditingStaff(blankStaff);
       toast.success("Staff member updated.");
     } catch {
-      toast.error("Unable to update staff. Check Appwrite configuration.");
+      toast.error("Unable to update staff member.");
     } finally {
       setIsMutating(false);
     }
@@ -243,7 +244,7 @@ const AdminAttendance = () => {
       }
       toast.success("Staff member removed.");
     } catch {
-      toast.error("Unable to remove staff. Check Appwrite configuration.");
+      toast.error("Unable to remove staff member.");
     } finally {
       setIsMutating(false);
     }
@@ -278,7 +279,7 @@ const AdminAttendance = () => {
       if (error instanceof Error) {
         toast.error(error.message);
       } else {
-        toast.error("Unable to save attendance. Check Appwrite configuration.");
+        toast.error("Unable to save attendance record.");
       }
     } finally {
       setIsMutating(false);
@@ -457,8 +458,16 @@ const AdminAttendance = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {error ? (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                {error}
+              <div className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span>{error}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refresh()}
+                  className="ml-4 h-7 text-xs border-amber-400 bg-amber-100 hover:bg-amber-200"
+                >
+                  Retry
+                </Button>
               </div>
             ) : null}
 
