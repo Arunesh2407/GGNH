@@ -30,8 +30,6 @@ dist-ssr
 backend/.env
 backend/.env.*
 !backend/.env.example
-functions/.env
-functions/.env.*
 firebase-adminsdk-*.json
 *service-account*.json
 backend/*service-account*.json
@@ -40,13 +38,6 @@ backend/*.json
 !backend/.env.example
 .firebaserc
 
-# Supabase CLI local state
-supabase/.temp
-supabase/.branches
-
 # Maven build output
 target/
 backend/target/
-
-# Functions build output
-functions/lib
