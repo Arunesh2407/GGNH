@@ -30,7 +30,9 @@ import AdminRegister from "./pages/AdminRegister.tsx";
 import AdminAttendance from "./pages/AdminAttendance.tsx";
 import AdminAttendanceReport from "./pages/AdminAttendanceReport.tsx";
 import StaffHome from "./pages/StaffHome.tsx";
+import StaffDirectory from "./pages/StaffDirectory.tsx";
 import StaffAppointments from "./pages/StaffAppointments.tsx";
+import MyAppointments from "./pages/MyAppointments.tsx";
 import AdminUserAccess from "./pages/AdminUserAccess.tsx";
 import InventoryHome from "./pages/inventory/InventoryHome.tsx";
 import ItemCategories from "./pages/inventory/ItemCategories.tsx";
@@ -92,6 +94,14 @@ const App = () => (
                 <Route path="/doctors" element={<Doctors />} />
                 <Route path="/gallery" element={<Gallery />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route
+                  path="/my-appointments"
+                  element={
+                    <ProtectedRoute>
+                      <MyAppointments />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin/register" element={<AdminRegister />} />
               </Route>
@@ -105,6 +115,14 @@ const App = () => (
                 }
               >
                 <Route index element={<StaffHome />} />
+                <Route
+                  path="members"
+                  element={
+                    <ProtectedRoute requiredAccess="manage-users">
+                      <StaffDirectory />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="attendance"
                   element={
