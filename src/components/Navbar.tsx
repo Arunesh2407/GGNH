@@ -219,6 +219,19 @@ const Navbar = () => {
               >
                 Contact Us
               </Link>
+
+              {isAuthenticated && (
+                <Link
+                  to="/my-appointments"
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive("/my-appointments")
+                      ? "text-primary bg-primary/8"
+                      : "text-foreground hover:text-primary hover:bg-primary/5"
+                  }`}
+                >
+                  My Appointments
+                </Link>
+              )}
             </div>
 
             {/* Right side */}

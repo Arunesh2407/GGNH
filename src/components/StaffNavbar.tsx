@@ -10,6 +10,7 @@ import {
   Menu,
   ShieldCheck,
   UserCheck,
+  Users,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,9 @@ const StaffNavbar = () => {
 
   const navLinks = [
     { to: "/staff", label: "Home", icon: Home },
+    ...(canManageUsers
+      ? [{ to: "/staff/members", label: "Staff", icon: Users }]
+      : []),
     ...(canManageAttendance
       ? [{ to: "/staff/attendance", label: "Attendance", icon: UserCheck }]
       : []),
