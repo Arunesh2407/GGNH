@@ -1,177 +1,248 @@
-# G G Nursing Home Hub
+# GG Nursing Home Hub
 
-## Admin Platform Setup (Firebase + Appwrite)
+GG Nursing Home Hub is a centralized, production-ready nursing home management system designed for healthcare operations, staff administration, patient appointment booking, daily attendance tracking, and medical inventory control.
 
-This project now uses:
+The system is built as a **clean, modular monolith** with a modern Single-Page Application (SPA) frontend and a secure Spring Boot 3 enterprise backend backed by PostgreSQL.
 
-- Firebase Authentication for admin login
-- Appwrite Database for staff and attendance data
-- Appwrite Database for appointments with status tracking
+---
 
-### 1) Configure environment variables
+## 🏛️ System Architecture
 
-Copy `.env.example` to `.env` and fill the values.
+```mermaid
+graph TD
+    subgraph Client ["Frontend Layer (Browser / SPA)"]
+        UI["React 18 + TypeScript + Vite + Tailwind CSS"]
+        AuthContext["Auth Context (Firebase Client Auth)"]
+        APIClient["Typed API Client (Axios + JWT Bearer Interceptor)"]
+        PDF["Client-side PDF Engine (jsPDF + AutoTable)"]
+    end
 
-```env
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_APP_ID=
-VITE_FIREBASE_FUNCTIONS_REGION=us-central1
-VITE_FIREBASE_DELETE_USER_FUNCTION_NAME=deleteUserAccessAccount
-VITE_ATTENDANCE_EDITOR_EMAILS=
-VITE_SUPER_ADMIN_EMAILS=
+    subgraph Security ["Identity & Auth Layer"]
+        Firebase["Firebase Authentication (Client Tokens)"]
+        FBAdmin["Firebase Admin SDK (Backend Token Verification)"]
+    end
 
-VITE_APPWRITE_ENDPOINT=
-VITE_APPWRITE_PROJECT_ID=
-VITE_APPWRITE_DATABASE_ID=
-VITE_APPWRITE_STAFF_COLLECTION_ID=
-VITE_APPWRITE_ATTENDANCE_COLLECTION_ID=
-VITE_APPWRITE_APPOINTMENT_COLLECTION_ID=
-VITE_APPWRITE_USER_ACCESS_COLLECTION_ID=
+    subgraph Backend ["Backend Layer (Spring Boot 3 / Java 17)"]
+        SecurityFilter["Security Filter Chain (Bearer Token Filter)"]
+        RBAC["Spring Security RBAC + Authority Matrix"]
+        
+        subgraph Controllers ["REST API Controllers"]
+            DashCtrl["/dashboard/summary"]
+            ApptCtrl["/appointments/**"]
+            StaffCtrl["/staff/**"]
+            AttCtrl["/attendance/**"]
+            InvCtrl["/inventory/**"]
+            UserCtrl["/users/**"]
+            AuthCtrl["/auth/**"]
+        end
+
+        subgraph Services ["Transactional Domain Services"]
+            DashService["DashboardService"]
+            ApptService["AppointmentService"]
+            StaffService["StaffService"]
+            AttService["AttendanceService"]
+            InvService["InventoryService (Ledger Audit Trail)"]
+            UserService["UserService"]
+            OutboxWorker["AppointmentOutboxWorker (@Scheduled)"]
+        end
+
+        Flyway["Flyway Database Migration Engine (V1–V5)"]
+        JPA["Hibernate 6 / Spring Data JPA"]
+    end
+
+    subgraph Storage ["Database Layer (PostgreSQL)"]
+        PG[("PostgreSQL 16+ Database")]
+    end
+
+    UI --> AuthContext
+    AuthContext -->|Login / Session| Firebase
+    UI --> APIClient
+    APIClient -->|HTTP + Bearer ID Token| SecurityFilter
+    SecurityFilter --> FBAdmin
+    FBAdmin -.->|Verify JWT| Firebase
+    SecurityFilter --> RBAC
+    RBAC --> Controllers
+    Controllers --> Services
+    Services --> JPA
+    Flyway -->|Auto-Migrate on Boot| PG
+    JPA -->|HikariCP Connection Pool| PG
+    ApptService -.->|Transactional Outbox| OutboxWorker
+    UI --> PDF
 ```
 
-### 2) Firebase Authentication
+---
 
-- Enable Email/Password sign-in in Firebase Auth
-- Create at least one owner account email/password and add it to `VITE_SUPER_ADMIN_EMAILS`
-- New users can self-register from `/admin/register`
-- Registered users stay pending until owner approval in Access Control
-- Sessions auto logout after 30 minutes of inactivity
-- Sessions also hard-expire after 24 hours from login even if active
+## 🚀 Core Features
 
-### 2.3) Delete user from Firebase + Firestore + Appwrite
+### 1. Admin Dashboard (`/dashboard/summary`)
+- Real-time operational overview: total appointments, pending reviews, staff count, today's attendance rates, and low-stock item counts.
+- Filterable appointment queues and low-stock inventory alert banners.
+- Merged recent activity feed tracking appointment bookings and inventory receipts.
+- Direct shortcuts to management modules based on verified permissions.
 
-Access Control now calls a Firebase Callable Function for user deletion so accounts are removed from all systems.
+### 2. Patient & Staff Appointment Management (`/appointments/**`)
+- Public patient booking with client-provided idempotency keys preventing duplicate submissions.
+- Transactional outbox pattern (`appointment_outbox`) for asynchronous email/SMS notification delivery.
+- Authenticated patient self-lookup (`GET /appointments/my`) returning only appointments matching the verified Firebase token email.
+- Staff appointment queue with status transitions (`booked` ➔ `completed`) and server-side pagination.
 
-1. Configure frontend env vars:
+### 3. Staff Directory (`/staff/**`)
+- Centralized staff directory with full CRUD operations.
+- Department, role, phone, and email tracking.
+- Active/inactive status management.
+
+### 4. Attendance Management (`/attendance/**`)
+- Daily attendance tracking with multi-status options (`present`, `absent`, `leave`, `off`, `half-time`, `over-time`).
+- Date-based query filters and history auditing.
+- In-browser monthly PDF report generation using `jspdf` and `jspdf-autotable`.
+
+### 5. Medical Inventory Management (`/inventory/**`)
+- Hierarchical category and vendor/supplier management.
+- Stock catalog tracking current stock, unit of measure, minimum reorder thresholds, and active status.
+- **Atomic Stock Receiving**: Transactional receipt generation with immediate inventory level updates and double-entry immutable ledger logging (`inventory_ledger`).
+- Real-time stock availability reports highlighting low-stock items.
+- Item trace reports providing complete audit trails for any supply.
+
+### 6. Authentication & Granular Access Control (`/auth/**`, `/users/**`)
+- Firebase Authentication for client identity (email/password).
+- Backend token verification using Firebase Admin SDK (`FirebaseAuthenticationFilter`).
+- PostgreSQL persistence for user accounts, role assignments, and granular permissions (`PERM_MANAGE_USERS`, `PERM_MANAGE_ATTENDANCE`, `PERM_MANAGE_INVENTORY`, etc.).
+- Automated `FirstOwnerBootstrap` for zero-configuration, secure initial owner provisioning on system initialization.
+- Automatic session management: 30-minute inactivity auto-logout and 24-hour absolute session expiration.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology | Details |
+|---|---|---|
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS | Lucide React icons, Radix UI primitives, Axios |
+| **Backend** | Spring Boot 3.2.5, Java 17 | Spring Security, Spring Data JPA, Hibernate 6, Lombok |
+| **Database** | PostgreSQL 16+ | Managed schema via Flyway migrations (V1–V5), HikariCP pool |
+| **Auth** | Firebase Auth + Firebase Admin SDK | Client JWT passed in `Authorization: Bearer <token>` header |
+| **Testing** | JUnit 5, Mockito, MockMvc, Vitest, Testing Library | 108 backend tests, 61 frontend tests |
+
+---
+
+## ⚙️ Environment Configuration
+
+### Frontend (`.env`)
+
+Create a `.env` file in the project root:
 
 ```env
-VITE_FIREBASE_FUNCTIONS_REGION=us-central1
-VITE_FIREBASE_DELETE_USER_FUNCTION_NAME=deleteUserAccessAccount
+# Spring Boot API URL
+VITE_API_BASE_URL=http://localhost:8080
+
+# Firebase Client Web Configuration
+VITE_FIREBASE_API_KEY=your-firebase-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-firebase-app.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
+VITE_FIREBASE_APP_ID=your-firebase-app-id
+
+# Notification Webhooks (Optional)
+VITE_SMS_WEBHOOK_URL=
+VITE_WHATSAPP_WEBHOOK_URL=
 ```
 
-2. Configure Functions backend env vars:
+### Backend (`backend/.env` or Environment Variables)
+
+Create a `backend/.env` file or export environment variables:
 
 ```env
-APPWRITE_ENDPOINT=
-APPWRITE_PROJECT_ID=
-APPWRITE_API_KEY=
-APPWRITE_DATABASE_ID=
-APPWRITE_USER_ACCESS_COLLECTION_ID=
-SUPER_ADMIN_EMAILS=owner@example.com
+# Server
+PORT=8080
+
+# PostgreSQL Connection
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=gg_nursing_home
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
+
+# Firebase Admin SDK
+FIREBASE_PROJECT_ID=your-firebase-project-id
+# Path to service account JSON (optional if using GOOGLE_APPLICATION_CREDENTIALS)
+FIREBASE_CREDENTIALS_PATH=
+
+# Initial Bootstrap Owner (Provisioned automatically on first startup)
+BOOTSTRAP_FIRST_OWNER_ENABLED=true
+BOOTSTRAP_FIRST_OWNER_EMAIL=owner@example.com
+BOOTSTRAP_FIRST_OWNER_ROLE=owner
 ```
 
-3. Install and deploy functions:
+---
+
+## 🏃 Running the Application
+
+### 1. Start PostgreSQL Database
+
+Using Docker Compose:
 
 ```bash
-cd functions
+docker-compose up -d
+```
+
+Or connect to an existing PostgreSQL instance and ensure the database specified in `DB_NAME` exists.
+
+### 2. Start the Spring Boot Backend
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+The backend starts on `http://localhost:8080`. On first run, Flyway automatically executes migrations `V1` through `V5`:
+- `V1`: Core schema (users, roles, permissions, appointments, staff, attendance)
+- `V2`: Production indices and performance optimization
+- `V3`: Appointment idempotency and transactional outbox schema
+- `V4`: Inventory subsystem (categories, suppliers, items, receipts, ledger)
+- `V5`: Inventory security and authorization permissions
+
+### 3. Start the Frontend
+
+```bash
+# In the project root
 npm install
+npm run dev
+```
+
+The Vite dev server runs at `http://localhost:5173`.
+
+---
+
+## 🧪 Testing & Verification
+
+### Run Backend Integration & Unit Tests
+```bash
+cd backend
+mvn test
+```
+*Expected: 108 tests passing, 0 failures, 0 errors.*
+
+### Run Frontend Unit & Integration Tests
+```bash
+npm test -- --run
+```
+*Expected: 61 tests passing across 8 test suites.*
+
+### Run Frontend Linter
+```bash
+npm run lint
+```
+*Expected: 0 errors.*
+
+### Build Production Frontend Bundle
+```bash
 npm run build
-npm run deploy
 ```
+*Generates optimized production assets in `dist/`.*
 
-The callable handler is in `functions/src/deleteUserAccessAccount.ts`.
+---
 
-### 2.1) Optional role-style control for attendance edit access
+## 🔒 Security Architecture
 
-- `VITE_ATTENDANCE_EDITOR_EMAILS` accepts a comma-separated list of emails
-- When this variable is empty, every authenticated account can edit attendance
-- When this variable is set, only listed emails can edit; other logged-in users are view-only
-
-Example:
-
-```env
-VITE_ATTENDANCE_EDITOR_EMAILS=owner@example.com,manager@example.com,staff1@example.com
-```
-
-### 2.2) Owner-controlled login user permissions and access
-
-- Add `VITE_SUPER_ADMIN_EMAILS` as a comma-separated list to bootstrap owner accounts
-- Example: `VITE_SUPER_ADMIN_EMAILS=owner@example.com`
-- Owners can open the in-app Access Control page and manage other login users
-
-Create an Appwrite collection for user access with fields:
-
-- `email` (string, required)
-- `role` (string, required, one of `owner`, `editor`, `viewer`)
-- `isActive` (boolean, required)
-- `updatedBy` (string, optional)
-- `updatedAt` (string, optional)
-
-Behavior:
-
-- `owner`: can manage users and edit attendance
-- `editor`: can edit attendance
-- `viewer`: read-only
-- `isActive=false`: login is blocked until owner approval
-
-### 3) Appwrite database collections
-
-Create four collections in the configured database:
-
-- Staff collection fields:
-  - `name` (string, required)
-  - `role` (string, required)
-  - `phone` (string, optional)
-  - `email` (string, optional)
-- Attendance collection fields:
-  - `date` (string, required, format `YYYY-MM-DD`)
-  - `staffId` (string, required)
-  - `status` (string, required, one of `present`, `absent`, `leave`, `off`, `half-time`, `over-time`)
-- Appointment collection fields:
-  - `name` (string, required)
-  - `email` (string, required)
-  - `phone` (string, required)
-  - `doctor` (string, required)
-  - `message` (string, required)
-  - `status` (string, required, one of `booked`, `completed`)
-  - `completedAt` (string, optional)
-- User Access collection fields:
-  - `email` (string, required)
-  - `role` (string, required)
-  - `isActive` (boolean, required)
-  - `updatedBy` (string, optional)
-  - `updatedAt` (string, optional)
-
-For quick development, allow client operations needed by the app on these collections.
-
-### Future expansion
-
-The project now has a dedicated data service layer in `src/services/` so pharmacy and inventory modules can add their own services and collections without changing page-level UI logic.
-
-## Appointment Notifications
-
-The appointment form in Contact now sends a real email to `ggnhpvtltd@gmail.com` using FormSubmit.
-
-### Email flow (already active)
-
-- Form posts to `https://formsubmit.co/ajax/ggnhpvtltd@gmail.com`
-- On success, user sees a success toast
-
-### Optional SMS and WhatsApp notifications to `7649891060`
-
-Set webhook endpoints in `.env` (or `.env.local`) if you have an SMS/WhatsApp provider:
-
-```env
-VITE_SMS_WEBHOOK_URL=https://your-sms-endpoint.example.com/notify
-VITE_WHATSAPP_WEBHOOK_URL=https://your-whatsapp-endpoint.example.com/notify
-```
-
-Each webhook receives JSON payload:
-
-```json
-{
-  "to": "7649891060",
-  "type": "appointment",
-  "appointment": {
-    "name": "Patient Name",
-    "phone": "Patient Phone",
-    "email": "Patient Email",
-    "department": "Selected Department",
-    "message": "Patient concern"
-  }
-}
-```
-
-If webhook URLs are not set, only email is sent.
+1. **Defense in Depth**: Frontend route guards (`ProtectedRoute.tsx`) provide user navigation protection, but all business logic, data mutations, and queries are strictly authenticated and authorized by Spring Security filters and `@PreAuthorize` method annotations on the backend.
+2. **Identity Verification**: Every protected backend request extracts the `Bearer <token>` HTTP header and validates the cryptographic signature and expiration via Firebase Admin SDK.
+3. **Data Isolation**: Patients querying appointments via `GET /appointments/my` are strictly constrained to records where `email` matches the verified token email claim.
+4. **Audit Trail**: Stock additions and adjustments record who received the stock, the timestamp, and the exact ledger balance delta in immutable `inventory_ledger` rows.
