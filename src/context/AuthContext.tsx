@@ -9,22 +9,22 @@ import {
   type ReactNode,
 } from "react";
 import {
-  deleteUser,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
-  type User,
 } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import { firebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { apiClient, ApiError, setOnUnauthorizedHandler } from "@/services/apiClient";
 import {
-  accessControlService,
   getDefaultPermissionsForRole,
   type UserPermissions,
 } from "@/services/accessControlService";
+import type { BackendUserProfile } from "@/services/userService";
 
-type AuthRole =
+export type AuthRole =
   | "owner"
   | "editor"
   | "viewer"
@@ -32,68 +32,52 @@ type AuthRole =
   | "department-head"
   | "auditor";
 
-const toNormalizedEmailSet = (value?: string) =>
-  new Set(
-    (value ?? "")
-      .split(",")
-      .map((entry) => entry.trim().toLowerCase())
-      .filter(Boolean),
-  );
-
-const configuredEditorEmails = toNormalizedEmailSet(
-  import.meta.env.VITE_ATTENDANCE_EDITOR_EMAILS,
-);
-
-const configuredSuperAdminEmails = toNormalizedEmailSet(
-  import.meta.env.VITE_SUPER_ADMIN_EMAILS,
-);
-
-const resolveRoleFromClaims = (claimValue: unknown): AuthRole | null => {
-  if (typeof claimValue !== "string") {
-    return null;
-  }
-
-  const normalized = claimValue.trim().toLowerCase();
-
-  if (normalized === "owner" || normalized === "admin") {
-    return "owner";
-  }
-
-  if (normalized === "editor") {
-    return "editor";
-  }
-
-  if (normalized === "viewer") {
-    return "viewer";
-  }
-
-  if (normalized === "store-manager" || normalized === "store_manager") {
-    return "store-manager";
-  }
-
-  if (normalized === "department-head" || normalized === "department_head") {
-    return "department-head";
-  }
-
-  if (normalized === "auditor") {
-    return "auditor";
-  }
-
-  return null;
-};
-
-type ResolvedAccess = {
-  role: AuthRole;
-  isActive: boolean;
-  permissions: UserPermissions;
-};
-
-type RegisterResult = {
+export type RegisterResult = {
   ok: boolean;
   error?: string;
 };
 
-const getRegisterErrorMessage = (error: unknown) => {
+const resolveBackendRole = (roles?: string[]): AuthRole => {
+  if (!roles || !Array.isArray(roles) || roles.length === 0) {
+    return "viewer";
+  }
+  const normalized = roles.map((r) => r.toLowerCase());
+  if (normalized.includes("owner") || normalized.includes("admin")) {
+    return "owner";
+  }
+  if (normalized.includes("editor")) {
+    return "editor";
+  }
+  if (normalized.includes("store-manager") || normalized.includes("store_manager")) {
+    return "store-manager";
+  }
+  if (normalized.includes("department-head") || normalized.includes("department_head")) {
+    return "department-head";
+  }
+  if (normalized.includes("auditor")) {
+    return "auditor";
+  }
+  return "viewer";
+};
+
+const resolveBackendPermissions = (
+  role: AuthRole,
+  permissions?: BackendUserProfile["permissions"]
+): UserPermissions => {
+  const defaults = getDefaultPermissionsForRole(role);
+  if (!permissions) {
+    return defaults;
+  }
+  return {
+    manageAttendance: permissions.manageAttendance ?? defaults.manageAttendance,
+    manageAppointments: permissions.manageAppointments ?? defaults.manageAppointments,
+    manageUsers: permissions.manageUsers ?? defaults.manageUsers,
+    manageInventory: permissions.manageInventory ?? defaults.manageInventory,
+    manageInventoryReports: permissions.manageInventoryReports ?? defaults.manageInventoryReports,
+  };
+};
+
+const getRegisterErrorMessage = (error: unknown): string => {
   const firebaseCode = (error as FirebaseError | undefined)?.code;
 
   if (firebaseCode === "auth/email-already-in-use") {
@@ -112,105 +96,15 @@ const getRegisterErrorMessage = (error: unknown) => {
     return "Password is too weak. Use at least 6 characters.";
   }
 
-  if (
-    error instanceof Error &&
-    /not authorized|permission|unauthorized|missing scope/i.test(error.message)
-  ) {
-    return "Account could not be queued for approval due to Appwrite permission settings. Ask super admin to allow create/read/update/delete on the user_access collection.";
+  if (error instanceof ApiError) {
+    return error.message;
   }
 
   if (error instanceof Error && error.message.trim()) {
     return `Registration failed: ${error.message}`;
   }
 
-  const errorCode = (error as { code?: unknown } | null)?.code;
-  if (typeof errorCode === "string" && errorCode.trim()) {
-    return `Registration failed (${errorCode}).`;
-  }
-
   return "Unable to create account right now. Try again.";
-};
-
-const resolveUserAccess = async (user: User): Promise<ResolvedAccess> => {
-  const normalizedEmail = user.email?.trim().toLowerCase() ?? "";
-
-  if (configuredSuperAdminEmails.has(normalizedEmail)) {
-    return {
-      role: "owner",
-      isActive: true,
-      permissions: getDefaultPermissionsForRole("owner"),
-    };
-  }
-
-  if (accessControlService.isConfigured) {
-    try {
-      const record = await accessControlService.getUserByEmail(normalizedEmail);
-
-      if (record) {
-        // Owner role is reserved for configured super admin emails only.
-        const resolvedRole: AuthRole =
-          record.role === "owner" ? "editor" : record.role;
-
-        return {
-          role: resolvedRole,
-          isActive: record.isActive,
-          permissions: record.permissions,
-        };
-      }
-
-      // Self-heal missing access records for existing Firebase users.
-      await accessControlService.upsertUser({
-        email: normalizedEmail,
-        role: "viewer",
-        isActive: false,
-        updatedBy: normalizedEmail || "system",
-      });
-
-      // Access collection is enabled and this user has no record yet.
-      // Keep account pending until a super admin approves it.
-      return {
-        role: "viewer",
-        isActive: false,
-        permissions: getDefaultPermissionsForRole("viewer"),
-      };
-    } catch {
-      // Ignore lookup failures and continue to fallback strategies.
-    }
-  }
-
-  try {
-    const tokenResult = await user.getIdTokenResult();
-    const claimedRole =
-      resolveRoleFromClaims(tokenResult.claims.role) ??
-      resolveRoleFromClaims(tokenResult.claims.appRole);
-
-    if (claimedRole) {
-      return {
-        role: claimedRole,
-        isActive: true,
-        permissions: getDefaultPermissionsForRole(claimedRole),
-      };
-    }
-  } catch {
-    // Ignore claim resolution errors and continue with email-based/default role.
-  }
-
-  if (configuredEditorEmails.size > 0) {
-    return {
-      role: configuredEditorEmails.has(normalizedEmail) ? "editor" : "viewer",
-      isActive: true,
-      permissions: getDefaultPermissionsForRole(
-        configuredEditorEmails.has(normalizedEmail) ? "editor" : "viewer",
-      ),
-    };
-  }
-
-  // By default, all authenticated accounts can edit attendance.
-  return {
-    role: "editor",
-    isActive: true,
-    permissions: getDefaultPermissionsForRole("editor"),
-  };
 };
 
 type AuthContextValue = {
@@ -277,7 +171,7 @@ const readSessionMetadata = (): SessionMetadata | null => {
 const writeSessionMetadata = (metadata: SessionMetadata) => {
   window.localStorage.setItem(
     SESSION_METADATA_STORAGE_KEY,
-    JSON.stringify(metadata),
+    JSON.stringify(metadata)
   );
 };
 
@@ -288,7 +182,7 @@ const clearSessionMetadata = () => {
 const broadcastLogout = () => {
   window.localStorage.setItem(
     LOGOUT_BROADCAST_STORAGE_KEY,
-    Date.now().toString(),
+    Date.now().toString()
   );
 };
 
@@ -302,8 +196,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isInactivityWarningVisible, setIsInactivityWarningVisible] =
     useState(false);
   const [userPermissions, setUserPermissions] = useState<UserPermissions>(
-    getDefaultPermissionsForRole("viewer"),
+    getDefaultPermissionsForRole("viewer")
   );
+
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const absoluteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -329,10 +224,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const performLogout = useCallback(
     async (broadcast = true) => {
-      if (!firebaseAuth) {
-        return;
-      }
-
       clearInactivityTimers();
       clearAbsoluteTimeout();
       setIsInactivityWarningVisible(false);
@@ -342,10 +233,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         broadcastLogout();
       }
 
-      await signOut(firebaseAuth);
+      if (firebaseAuth) {
+        try {
+          await signOut(firebaseAuth);
+        } catch {
+          // Ignore logout errors
+        }
+      }
     },
-    [clearAbsoluteTimeout, clearInactivityTimers],
+    [clearAbsoluteTimeout, clearInactivityTimers]
   );
+
+  // Wire API client's unauthorized callback to clear session safely on unrecoverable 401
+  useEffect(() => {
+    setOnUnauthorizedHandler(() => {
+      void performLogout();
+    });
+    return () => {
+      setOnUnauthorizedHandler(null);
+    };
+  }, [performLogout]);
 
   const scheduleAbsoluteTimeout = useCallback(
     (startedAt: number) => {
@@ -365,7 +272,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         void performLogout();
       }, remaining);
     },
-    [clearAbsoluteTimeout, performLogout],
+    [clearAbsoluteTimeout, performLogout]
   );
 
   const scheduleInactivityTimers = useCallback(() => {
@@ -377,10 +284,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, INACTIVITY_WARNING_MS);
 
     logoutTimeoutRef.current = setTimeout(async () => {
-      if (!firebaseAuth) {
-        return;
-      }
-
       setIsInactivityWarningVisible(false);
       setAuthError("Logged out after 30 minutes of inactivity.");
       await performLogout();
@@ -391,7 +294,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!isAuthenticated) {
       return;
     }
-
     scheduleInactivityTimers();
   }, [isAuthenticated, scheduleInactivityTimers]);
 
@@ -399,22 +301,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!isFirebaseConfigured || !firebaseAuth) {
       setIsLoading(false);
       setAuthError(
-        "Firebase is not configured. Add Firebase env variables to enable admin login.",
+        "Firebase is not configured. Add Firebase env variables to enable admin login."
       );
       return;
     }
 
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
-      setIsAuthenticated(Boolean(user));
-
       if (!user) {
         clearInactivityTimers();
         clearAbsoluteTimeout();
         setIsInactivityWarningVisible(false);
+        setIsAuthenticated(false);
         setUserEmail("");
         setUserRole("viewer");
         setIsAccessActive(true);
         setUserPermissions(getDefaultPermissionsForRole("viewer"));
+        setIsLoading(false);
+        return;
+      }
+
+      // Refresh Firebase user details if not verified to detect recent email verification
+      if (!user.emailVerified) {
+        try {
+          await user.reload();
+        } catch {
+          // Ignore reload error
+        }
+        if (user.emailVerified) {
+          try {
+            await user.getIdToken(true);
+          } catch {
+            // Ignore token refresh error
+          }
+        }
+      }
+
+      // If email is still unverified, reject access and sign out
+      if (!user.emailVerified) {
+        clearInactivityTimers();
+        clearAbsoluteTimeout();
+        setIsInactivityWarningVisible(false);
+        setIsAuthenticated(false);
+        setIsAccessActive(false);
+        setAuthError("Email address must be verified before account registration or access.");
+        await performLogout();
         setIsLoading(false);
         return;
       }
@@ -440,31 +370,91 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const access = await resolveUserAccess(user);
+      try {
+        let profile: BackendUserProfile;
+        try {
+          profile = await apiClient.get<BackendUserProfile>("/auth/me");
+        } catch (error) {
+          if (error instanceof ApiError && error.isUnauthorized && user.emailVerified) {
+            profile = await apiClient.post<BackendUserProfile>("/auth/sync");
+          } else {
+            throw error;
+          }
+        }
 
-      if (!access.isActive) {
+        const active = profile.active ?? profile.isActive ?? false;
+        const role = resolveBackendRole(profile.roles);
+        const permissions = resolveBackendPermissions(role, profile.permissions);
+
+        if (!active) {
+          clearInactivityTimers();
+          setIsInactivityWarningVisible(false);
+          setAuthError(
+            "Account pending approval. Please wait for super admin access approval."
+          );
+          setUserEmail(profile.email || user.email || "");
+          setUserRole(role);
+          setIsAccessActive(false);
+          setUserPermissions(permissions);
+          setIsAuthenticated(false);
+          await performLogout();
+          setIsLoading(false);
+          return;
+        }
+
+        setAuthError("");
+        setUserEmail(profile.email || user.email || "");
+        setUserRole(role);
+        setIsAccessActive(true);
+        setUserPermissions(permissions);
+        setIsAuthenticated(true);
+        scheduleInactivityTimers();
+        scheduleAbsoluteTimeout(sessionStartedAt);
+        setIsLoading(false);
+      } catch (error) {
         clearInactivityTimers();
         setIsInactivityWarningVisible(false);
-        setAuthError(
-          "Account pending approval. Please wait for super admin access approval.",
-        );
-        setUserEmail(user.email ?? "");
-        setUserRole(access.role);
+        setIsAuthenticated(false);
         setIsAccessActive(false);
-        setUserPermissions(access.permissions);
+
+        if (error instanceof ApiError) {
+          if (error.isForbidden) {
+            setAuthError(
+              "Account pending approval or inactive. Please contact an administrator."
+            );
+          } else if (error.isUnauthorized) {
+            if (!user.emailVerified) {
+              setAuthError(
+                "Email address must be verified before account registration or access."
+              );
+            } else {
+              setAuthError(
+                "User account not found in database. Contact administrator or register."
+              );
+            }
+          } else if (error.status === 0) {
+            setAuthError(
+              "Backend service is unavailable. Please check your connection or server status."
+            );
+          } else if (error.isServerError) {
+            setAuthError(
+              "Backend server error. Please try again later."
+            );
+          } else {
+            setAuthError(
+              error.message ||
+              "Backend service temporarily unavailable. Please try again later."
+            );
+          }
+        } else {
+          setAuthError(
+            "Backend service is unavailable. Please check your connection or server status."
+          );
+        }
+
         await performLogout();
         setIsLoading(false);
-        return;
       }
-
-      setAuthError("");
-      setUserEmail(user.email ?? "");
-      setUserRole(access.role);
-      setIsAccessActive(true);
-      setUserPermissions(access.permissions);
-      scheduleInactivityTimers();
-      scheduleAbsoluteTimeout(sessionStartedAt);
-      setIsLoading(false);
     });
 
     return () => {
@@ -532,77 +522,167 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     scheduleInactivityTimers,
   ]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    if (!isFirebaseConfigured || !firebaseAuth) {
-      setAuthError(
-        "Firebase is not configured. Add Firebase env variables in .env.",
-      );
-      return false;
-    }
-
-    try {
-      setAuthError("");
-      await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
-      return true;
-    } catch (error) {
-      setAuthError("Invalid email or password.");
-      return false;
-    }
-  }, []);
-
-  const register = useCallback(async (email: string, password: string) => {
-    if (!isFirebaseConfigured || !firebaseAuth) {
-      const message =
-        "Firebase is not configured. Add Firebase env variables in .env.";
-      setAuthError(message);
-      return { ok: false, error: message };
-    }
-
-    if (!accessControlService.isConfigured) {
-      const message =
-        "User access collection is not configured. Contact super admin.";
-      setAuthError(message);
-      return { ok: false, error: message };
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    try {
-      setAuthError("");
-      const userCredential = await createUserWithEmailAndPassword(
-        firebaseAuth,
-        normalizedEmail,
-        password,
-      );
-
-      try {
-        await accessControlService.upsertUser({
-          email: normalizedEmail,
-          role: "viewer",
-          isActive: false,
-          updatedBy: normalizedEmail,
-        });
-      } catch (error) {
-        try {
-          await deleteUser(userCredential.user);
-        } catch {
-          // Best-effort rollback; if this fails the account remains pending.
-        }
-
-        throw error;
+  const login = useCallback(
+    async (email: string, password: string): Promise<boolean> => {
+      if (!isFirebaseConfigured || !firebaseAuth) {
+        setAuthError(
+          "Firebase is not configured. Add Firebase env variables in .env."
+        );
+        return false;
       }
 
-      await signOut(firebaseAuth);
-      setAuthError(
-        "Account created. Wait for super admin approval before login.",
-      );
-      return { ok: true };
-    } catch (error) {
-      const message = getRegisterErrorMessage(error);
-      setAuthError(message);
-      return { ok: false, error: message };
-    }
-  }, []);
+      try {
+        setAuthError("");
+        const credential = await signInWithEmailAndPassword(
+          firebaseAuth,
+          email.trim(),
+          password
+        );
+
+        // Refresh user to check if email was verified recently
+        if (!credential.user.emailVerified) {
+          try {
+            await credential.user.reload();
+          } catch {
+            // Ignore reload error
+          }
+          if (credential.user.emailVerified) {
+            try {
+              await credential.user.getIdToken(true);
+            } catch {
+              // Ignore token refresh error
+            }
+          }
+        }
+
+        // If email is still unverified, reject immediately
+        if (!credential.user.emailVerified) {
+          setAuthError(
+            "Email address must be verified before account registration or access."
+          );
+          await signOut(firebaseAuth);
+          return false;
+        }
+
+        try {
+          let profile: BackendUserProfile;
+          try {
+            profile = await apiClient.get<BackendUserProfile>("/auth/me");
+          } catch (err) {
+            if (
+              err instanceof ApiError &&
+              err.isUnauthorized &&
+              credential.user.emailVerified
+            ) {
+              profile = await apiClient.post<BackendUserProfile>("/auth/sync");
+            } else {
+              throw err;
+            }
+          }
+
+          const active = profile.active ?? profile.isActive ?? false;
+          if (!active) {
+            setAuthError(
+              "Account pending approval. Please wait for super admin access approval."
+            );
+            await signOut(firebaseAuth);
+            return false;
+          }
+
+          return true;
+        } catch (apiErr) {
+          await signOut(firebaseAuth);
+          if (apiErr instanceof ApiError) {
+            if (apiErr.isForbidden) {
+              setAuthError(
+                "Account pending approval or inactive. Please contact an administrator."
+              );
+            } else if (apiErr.isUnauthorized) {
+              if (!credential.user.emailVerified) {
+                setAuthError(
+                  "Email address must be verified before account registration or access."
+                );
+              } else {
+                setAuthError(
+                  "User account not found in database. Contact administrator or register."
+                );
+              }
+            } else if (apiErr.status === 0) {
+              setAuthError(
+                "Backend service is unavailable. Please check your connection or server status."
+              );
+            } else if (apiErr.isServerError) {
+              setAuthError(
+                "Backend server error. Please try again later."
+              );
+            } else {
+              setAuthError(
+                apiErr.message || "Backend service temporarily unavailable."
+              );
+            }
+          } else {
+            setAuthError(
+              "Backend service is unavailable. Please check your connection or server status."
+            );
+          }
+          return false;
+        }
+      } catch (error) {
+        setAuthError("Invalid email or password.");
+        return false;
+      }
+    },
+    []
+  );
+
+  const register = useCallback(
+    async (email: string, password: string): Promise<RegisterResult> => {
+      if (!isFirebaseConfigured || !firebaseAuth) {
+        const message =
+          "Firebase is not configured. Add Firebase env variables in .env.";
+        setAuthError(message);
+        return { ok: false, error: message };
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+
+      try {
+        setAuthError("");
+        const userCredential = await createUserWithEmailAndPassword(
+          firebaseAuth,
+          normalizedEmail,
+          password
+        );
+
+        try {
+          await sendEmailVerification(userCredential.user);
+        } catch {
+          // Best-effort email verification send
+        }
+
+        if (userCredential.user.emailVerified) {
+          try {
+            await apiClient.post("/auth/register");
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 409) {
+              // Existing identity conflict handled
+            }
+          }
+        }
+
+        await signOut(firebaseAuth);
+        setAuthError(
+          "Account created. Wait for super admin approval before login."
+        );
+        return { ok: true };
+      } catch (error) {
+        const message = getRegisterErrorMessage(error);
+        setAuthError(message);
+        return { ok: false, error: message };
+      }
+    },
+    []
+  );
 
   const logout = useCallback(async () => {
     await performLogout();
@@ -646,7 +726,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login,
       register,
       logout,
-    ],
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
