@@ -1,18 +1,109 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   servlet:
-    context-path: /api/v1
+    context-path: ${SERVER_SERVLET_CONTEXT_PATH:/api/v1}
+
+app:
+  firebase:
+    enabled: ${FIREBASE_ENABLED:true}
+    config-path: ${FIREBASE_CONFIG_PATH:}
+    credentials-json: ${FIREBASE_CREDENTIALS_JSON:}
+    check-revoked: ${FIREBASE_CHECK_REVOKED:false}
+    project-id: ${FIREBASE_PROJECT_ID:}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://localhost:8081}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    appointments-per-minute: ${RATE_LIMIT_APPOINTMENTS_PER_MINUTE:10}
+    auth-per-minute: ${RATE_LIMIT_AUTH_PER_MINUTE:10}
+    trust-proxy-headers: ${RATE_LIMIT_TRUST_PROXY_HEADERS:false}
+  bootstrap:
+    first-owner:
+      enabled: ${APP_BOOTSTRAP_FIRST_OWNER_ENABLED:false}
+      secret: ${APP_BOOTSTRAP_FIRST_OWNER_SECRET:}
 
 spring:
   application:
     name: ggnh-backend
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:backend/.env[.properties]
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:postgres}
 
   datasource:
-    # Default to H2 in-memory DB for immediate local running without external service requirements
-    url: jdbc:h2:mem:ggnhdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ggnh_db}${DB_SSL_QUERY:}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:postgres}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:postgres}}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    locations: classpath:db/migration
+
+# Dedicated Supabase Hosted PostgreSQL Profile
+---
+spring:
+  config:
+    activate:
+      on-profile: supabase
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:aws-0-eu-north-1.pooler.supabase.com}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    locations: classpath:db/migration
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  jpa:
+    show-sql: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: h2
+
+  datasource:
+    url: jdbc:h2:mem:ggnhdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
-    password: 
+    password:
 
   h2:
     console:
@@ -22,26 +113,8 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
 
-# PostgreSQL configuration profile (Activate via SPRING_PROFILES_ACTIVE=postgres)
----
-spring:
-  config:
-    activate:
-      on-profile: postgres
-
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ggnh_db}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    hibernate:
-      ddl-auto: update
+  flyway:
+    enabled: false
