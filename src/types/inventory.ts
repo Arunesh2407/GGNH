@@ -25,6 +25,7 @@ export type InventoryItem = {
   id: string;
   name: string;
   sku: string;
+  description?: string;
   categoryId: string;
   categoryName?: string;
   unit: string;
@@ -56,11 +57,13 @@ export type StockReceipt = {
 export type InventoryLedgerEntry = {
   id: string;
   itemId: string;
-  action: "receive";
+  itemName?: string;
+  itemSku?: string;
+  action: "receive" | "issue" | "adjust" | "waste" | "return";
   quantity: number;
   balanceAfter: number;
-  sourceId: string;
-  sourceType: "stock-receipt";
+  sourceId?: string;
+  sourceType: string;
   notes?: string;
   createdBy: string;
   createdAt: string;
