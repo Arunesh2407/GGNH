@@ -1,21 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import ScrollReveal from "@/components/ScrollReveal";
-import { Phone, Mail, MapPin, Clock, Send, ArrowRight } from "lucide-react";
+import { Phone, Mail, MapPin, Clock, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { appointmentService } from "@/services/appointmentService";
+import { appointmentService, generateUuid } from "@/services/appointmentService";
+import { ApiError } from "@/services/apiClient";
 
-const APPOINTMENT_EMAIL_ENDPOINT =
-  "https://formsubmit.co/ajax/ggnhpvtltd@gmail.com";
-const NOTIFICATION_PHONE = "7649891060";
 const DOCTOR_OPTIONS = [
   "Dr. Vikas Gupta",
   "Dr. Shefali Gupta",
   "Consultant Physician",
   "Don't know",
+];
+
+const TIME_SLOTS = [
+  "09:00 AM - 10:00 AM",
+  "10:00 AM - 11:00 AM",
+  "11:00 AM - 12:00 PM",
+  "12:00 PM - 01:00 PM",
+  "02:00 PM - 03:00 PM",
+  "03:00 PM - 04:00 PM",
+  "05:00 PM - 06:00 PM",
+  "06:00 PM - 07:00 PM",
 ];
 
 const Contact = () => {
@@ -26,9 +35,16 @@ const Contact = () => {
     email: "",
     phone: "",
     doctor: "",
+    appointmentDate: "",
+    timeSlot: "",
     message: "",
   });
   const [sending, setSending] = useState(false);
+
+  // Idempotency tracking refs: preserve key across retries of identical payload;
+  // generate a new key if fields change or on a fresh submission.
+  const currentIdempotencyKeyRef = useRef<string | null>(null);
+  const lastSubmittedPayloadRef = useRef<string | null>(null);
 
   useEffect(() => {
     const doctorFromQuery = searchParams.get("doctor");
@@ -39,7 +55,17 @@ const Contact = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.phone.trim()) {
+    if (sending) {
+      return;
+    }
+
+    const trimmedName = form.name.trim();
+    const trimmedPhone = form.phone.trim();
+    const trimmedEmail = form.email.trim().toLowerCase();
+    const trimmedDoctor = form.doctor.trim();
+    const trimmedMessage = form.message.trim();
+
+    if (!trimmedName || !trimmedPhone) {
       toast({
         title: "Please fill all required fields",
         variant: "destructive",
@@ -47,81 +73,57 @@ const Contact = () => {
       return;
     }
 
+    // Build payload signature to distinguish retries from edits
+    const payloadSignature = JSON.stringify({
+      name: trimmedName,
+      phone: trimmedPhone,
+      email: trimmedEmail,
+      doctor: trimmedDoctor,
+      appointmentDate: form.appointmentDate || undefined,
+      timeSlot: form.timeSlot || undefined,
+      message: trimmedMessage,
+    });
+
+    // If payload is unchanged from previous failed attempt, reuse the existing idempotency key.
+    // If fields were modified or this is a new submission, generate a new UUID.
+    if (
+      !currentIdempotencyKeyRef.current ||
+      lastSubmittedPayloadRef.current !== payloadSignature
+    ) {
+      currentIdempotencyKeyRef.current = generateUuid();
+      lastSubmittedPayloadRef.current = payloadSignature;
+    }
+
+    const idempotencyKey = currentIdempotencyKeyRef.current;
     setSending(true);
 
     try {
-      const appointmentPayload = {
-        name: form.name.trim(),
-        email: form.email.trim() || "Not provided",
-        phone: form.phone.trim(),
-        doctor: form.doctor || "Not selected",
-        message: form.message.trim() || "Not provided",
-        _subject: "New Appointment Request - G G Nursing Home",
-        _template: "table",
-        _captcha: "false",
+      const inputObj: {
+        name: string;
+        phone: string;
+        email?: string;
+        doctor?: string;
+        appointmentDate?: string;
+        timeSlot?: string;
+        message?: string;
+      } = {
+        name: trimmedName,
+        phone: trimmedPhone,
+        email: trimmedEmail || undefined,
+        doctor: trimmedDoctor || undefined,
+        message: trimmedMessage || undefined,
       };
+      if (form.appointmentDate) inputObj.appointmentDate = form.appointmentDate;
+      if (form.timeSlot) inputObj.timeSlot = form.timeSlot;
 
-      const emailResponse = await fetch(APPOINTMENT_EMAIL_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(appointmentPayload),
-      });
+      await appointmentService.addAppointment(
+        inputObj,
+        idempotencyKey
+      );
 
-      if (!emailResponse.ok) {
-        throw new Error("Email request failed");
-      }
-
-      const smsWebhookUrl = import.meta.env.VITE_SMS_WEBHOOK_URL;
-      const whatsappWebhookUrl = import.meta.env.VITE_WHATSAPP_WEBHOOK_URL;
-
-      const notifyPayload = {
-        to: NOTIFICATION_PHONE,
-        type: "appointment",
-        appointment: {
-          name: appointmentPayload.name,
-          phone: appointmentPayload.phone,
-          email: appointmentPayload.email,
-          doctor: appointmentPayload.doctor,
-          message: appointmentPayload.message,
-        },
-      };
-
-      const notificationTasks: Promise<Response>[] = [];
-
-      if (smsWebhookUrl) {
-        notificationTasks.push(
-          fetch(smsWebhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(notifyPayload),
-          }),
-        );
-      }
-
-      if (whatsappWebhookUrl) {
-        notificationTasks.push(
-          fetch(whatsappWebhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(notifyPayload),
-          }),
-        );
-      }
-
-      if (notificationTasks.length > 0) {
-        await Promise.allSettled(notificationTasks);
-      }
-
-      await appointmentService.addAppointment({
-        name: appointmentPayload.name,
-        email: appointmentPayload.email,
-        phone: appointmentPayload.phone,
-        doctor: appointmentPayload.doctor,
-        message: appointmentPayload.message,
-      });
+      // On successful submission, clear tracking so next submission gets a fresh key
+      currentIdempotencyKeyRef.current = null;
+      lastSubmittedPayloadRef.current = null;
 
       toast({
         title: "Appointment Request Sent!",
@@ -133,14 +135,46 @@ const Contact = () => {
         email: "",
         phone: "",
         doctor: "",
+        appointmentDate: "",
+        timeSlot: "",
         message: "",
       });
-    } catch {
-      toast({
-        title: "Unable to send appointment",
-        description: "Please try again or call 07622-229250.",
-        variant: "destructive",
-      });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.status === 400) {
+          toast({
+            title: "Invalid appointment details",
+            description:
+              err.message || "Please check your information and try again.",
+            variant: "destructive",
+          });
+        } else if (err.status === 409) {
+          toast({
+            title: "Appointment in progress",
+            description:
+              "This appointment request has already been submitted or is being processed.",
+          });
+        } else if (err.status === 429) {
+          toast({
+            title: "Too many requests",
+            description:
+              "Please wait a moment before trying to submit another appointment.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Unable to send appointment",
+            description: "Please try again or call 07622-229250.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Unable to send appointment",
+          description: "Please try again or call 07622-229250.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setSending(false);
     }
@@ -315,6 +349,33 @@ const Contact = () => {
                             <option key={doctor}>{doctor}</option>
                           ))}
                         </select>
+                      </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Preferred Date
+                        </label>
+                        <Input
+                          type="date"
+                          value={form.appointmentDate}
+                          min={new Date().toISOString().split("T")[0]}
+                          onChange={(e) =>
+                            setForm({ ...form, appointmentDate: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Preferred Time Slot
+                        </label>
+                        <Input
+                          placeholder="e.g. 10:00 AM - 11:00 AM"
+                          value={form.timeSlot}
+                          onChange={(e) =>
+                            setForm({ ...form, timeSlot: e.target.value })
+                          }
+                        />
                       </div>
                     </div>
                     <div>

@@ -21,12 +21,12 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
 import {
-  accessControlService,
   getDefaultPermissionsForRole,
   type UserPermissions,
   type UserAccessRecord,
   type UserAccessRole,
 } from "@/services/accessControlService";
+import { userService } from "@/services/userService";
 
 const roleBadgeVariant: Record<
   UserAccessRole,
@@ -56,7 +56,7 @@ const AdminUserAccess = () => {
 
   const handleFormPermissionChange = (
     permission: keyof UserPermissions,
-    value: boolean,
+    value: boolean
   ) => {
     setForm((previous) => ({
       ...previous,
@@ -68,15 +68,10 @@ const AdminUserAccess = () => {
   };
 
   const loadUsers = useCallback(async () => {
-    if (!accessControlService.isConfigured) {
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      const users = await accessControlService.listUsers();
+      const users = await userService.listUsers();
       setRecords(users);
     } catch (error) {
       const message =
@@ -113,33 +108,16 @@ const AdminUserAccess = () => {
       return;
     }
 
-    setIsSaving(true);
-
-    try {
-      await accessControlService.upsertUser({
-        email,
-        role: form.role,
-        isActive: form.isActive,
-        permissions: form.permissions,
-        updatedBy: userEmail || "system",
-      });
-      toast.success("User access saved.");
-      setForm(defaultFormState);
-      await loadUsers();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to save user access.";
-      toast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
+    toast.info(
+      "User accounts are provisioned via self-registration. Once registered, manage their role and approval status below."
+    );
   };
 
   const handleQuickUpdate = async (
     record: UserAccessRecord,
     updates: Partial<
       Pick<UserAccessRecord, "role" | "isActive" | "permissions">
-    >,
+    >
   ) => {
     if (!canEditUsers) {
       toast.error("Your account has read-only access for this module.");
@@ -153,7 +131,7 @@ const AdminUserAccess = () => {
       : updates.role
         ? getDefaultPermissionsForRole(nextRole)
         : record.permissions;
-    const isSelf = record.email === userEmail.toLowerCase();
+    const isSelf = record.email.toLowerCase() === userEmail.toLowerCase();
 
     if (isSelf && !nextActive) {
       toast.error("You cannot deactivate your own account.");
@@ -177,14 +155,17 @@ const AdminUserAccess = () => {
     setIsSaving(true);
 
     try {
-      await accessControlService.upsertUser({
-        email: record.email,
-        role: nextRole,
-        isActive: nextActive,
-        permissions: nextPermissions,
-        updatedBy: userEmail || "system",
-      });
-      toast.success("Permissions updated.");
+      if (updates.isActive !== undefined && updates.isActive !== record.isActive) {
+        await userService.updateStatus(record.id, updates.isActive);
+        toast.success(
+          updates.isActive
+            ? "Account approved and activated."
+            : "Account deactivated."
+        );
+      } else {
+        await userService.updateAccess(record.id, nextRole, nextPermissions);
+        toast.success("Permissions updated.");
+      }
       await loadUsers();
     } catch (error) {
       const message =
@@ -192,6 +173,8 @@ const AdminUserAccess = () => {
           ? error.message
           : "Unable to update user permissions.";
       toast.error(message);
+      // Re-fetch users to revert uncommitted DOM/form state upon backend rejection
+      await loadUsers();
     } finally {
       setIsSaving(false);
     }
@@ -203,70 +186,16 @@ const AdminUserAccess = () => {
       return;
     }
 
-    if (record.email === userEmail.toLowerCase()) {
+    const isSelf = record.email.toLowerCase() === userEmail.toLowerCase();
+    if (isSelf) {
       toast.error("You cannot remove your own owner record.");
       return;
     }
 
-    if (
-      !window.confirm(
-        `Delete ${record.email} from Firebase auth, Firestore, and access control?`,
-      )
-    ) {
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      await accessControlService.removeUserEverywhere({
-        accessRecordId: record.id,
-        email: record.email,
-        deletedBy: userEmail || "system",
-      });
-      toast.success(
-        "User removed from Firebase, Firestore, and access control.",
-      );
-      await loadUsers();
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to delete user account across systems.";
-      toast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  if (!accessControlService.isConfigured) {
-    return (
-      <main className="min-h-screen pt-36 pb-16 px-4 bg-muted/30">
-        <div className="max-w-5xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle>User Access Control</CardTitle>
-              <CardDescription>
-                Configure Appwrite user access collection to enable permission
-                management.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Add VITE_APPWRITE_USER_ACCESS_COLLECTION_ID in your environment,
-                then create a collection with fields: email (string), role
-                (string), isActive (boolean), manageAttendance (boolean,
-                optional), manageAppointments (boolean, optional), manageUsers
-                (boolean, optional), manageInventory (boolean, optional),
-                manageInventoryReports (boolean, optional), updatedBy (string),
-                updatedAt (string).
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+    toast.info(
+      "Account deletion is not supported. Use the Disable button to revoke access."
     );
-  }
+  };
 
   return (
     <main className="min-h-screen pt-36 pb-16 px-4 bg-muted/30">
@@ -278,9 +207,8 @@ const AdminUserAccess = () => {
               User Access Control
             </CardTitle>
             <CardDescription>
-              Add login users, assign specific module permissions, and enable or
-              disable account access. Owner role is reserved for super admin
-              emails only.
+              Assign specific module permissions and enable or disable account
+              access. Role permissions are enforced securely by PostgreSQL.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -316,7 +244,7 @@ const AdminUserAccess = () => {
                       "owner"
                     >,
                     permissions: getDefaultPermissionsForRole(
-                      event.target.value as Exclude<UserAccessRole, "owner">,
+                      event.target.value as Exclude<UserAccessRole, "owner">
                     ),
                   }))
                 }
@@ -337,7 +265,7 @@ const AdminUserAccess = () => {
                     onChange={(event) =>
                       handleFormPermissionChange(
                         "manageAttendance",
-                        event.target.checked,
+                        event.target.checked
                       )
                     }
                   />
@@ -351,7 +279,7 @@ const AdminUserAccess = () => {
                     onChange={(event) =>
                       handleFormPermissionChange(
                         "manageAppointments",
-                        event.target.checked,
+                        event.target.checked
                       )
                     }
                   />
@@ -365,7 +293,7 @@ const AdminUserAccess = () => {
                     onChange={(event) =>
                       handleFormPermissionChange(
                         "manageUsers",
-                        event.target.checked,
+                        event.target.checked
                       )
                     }
                   />
@@ -379,7 +307,7 @@ const AdminUserAccess = () => {
                     onChange={(event) =>
                       handleFormPermissionChange(
                         "manageInventory",
-                        event.target.checked,
+                        event.target.checked
                       )
                     }
                   />
@@ -393,7 +321,7 @@ const AdminUserAccess = () => {
                     onChange={(event) =>
                       handleFormPermissionChange(
                         "manageInventoryReports",
-                        event.target.checked,
+                        event.target.checked
                       )
                     }
                   />
@@ -427,7 +355,8 @@ const AdminUserAccess = () => {
             <div>
               <CardTitle>Managed Users</CardTitle>
               <CardDescription>
-                Owner can change role, disable access, or remove access records.
+                Administrators can change role, update permissions, or toggle
+                account approval status.
               </CardDescription>
             </div>
             <Button
@@ -458,7 +387,8 @@ const AdminUserAccess = () => {
                   </TableHeader>
                   <TableBody>
                     {records.map((record) => {
-                      const isSelf = record.email === userEmail.toLowerCase();
+                      const isSelf =
+                        record.email.toLowerCase() === userEmail.toLowerCase();
                       const isOwnerRole = record.role === "owner";
 
                       return (
@@ -643,7 +573,7 @@ const AdminUserAccess = () => {
                           colSpan={5}
                           className="text-center text-muted-foreground"
                         >
-                          No user access records found. Add one above.
+                          No user access records found.
                         </TableCell>
                       </TableRow>
                     ) : null}
